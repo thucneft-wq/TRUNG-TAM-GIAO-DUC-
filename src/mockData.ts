@@ -348,6 +348,14 @@ export const getDashboardMetricsByTimeRange = (
   return {
     totalStudents,
     activeCounselors,
+    totalTests: counselors.reduce(
+      (sum, counselor) => sum + counselor.timeRangeMetrics[timeRange].assignedTests,
+      0,
+    ),
+    totalTestAttempts: counselors.reduce(
+      (sum, counselor) => sum + counselor.timeRangeMetrics[timeRange].completedTests,
+      0,
+    ),
     totalBookings: totalCompleted + totalPending + totalCancelled,
     passedCounselors,
     notPassedCounselors: activeCounselors - passedCounselors,

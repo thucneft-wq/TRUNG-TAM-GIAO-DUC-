@@ -25,6 +25,7 @@ interface CounselorListScreenProps {
   onNavigateToDetail: () => void;
   onCreateCounselor: (input: CreateCounselorInput) => Promise<void>;
   dataSource: 'api' | 'mock';
+  canManageCounselors: boolean;
 }
 
 export const CounselorListScreen: React.FC<CounselorListScreenProps> = ({
@@ -35,6 +36,7 @@ export const CounselorListScreen: React.FC<CounselorListScreenProps> = ({
   onNavigateToDetail,
   onCreateCounselor,
   dataSource,
+  canManageCounselors,
 }) => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'pass' | 'not-pass'>(initialFilterStatus);
   const [searchQuery, setSearchQuery] = useState('');
@@ -118,15 +120,17 @@ export const CounselorListScreen: React.FC<CounselorListScreenProps> = ({
 
           {/* Quick Metrics Bar */}
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              id="btn-add-counselor"
-              type="button"
-              onClick={() => setIsCreateOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700"
-            >
-              <Plus className="h-4 w-4" />
-              Thêm tư vấn viên
-            </button>
+            {canManageCounselors && (
+              <button
+                id="btn-add-counselor"
+                type="button"
+                onClick={() => setIsCreateOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700"
+              >
+                <Plus className="h-4 w-4" />
+                Thêm tư vấn viên
+              </button>
+            )}
             <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">
               <span className="text-2xs font-semibold uppercase text-slate-500">Tổng:</span>
               <span className="text-xs font-bold text-slate-800">{counselors.length}</span>
@@ -404,7 +408,7 @@ export const CounselorListScreen: React.FC<CounselorListScreenProps> = ({
         </div>
       </div>
 
-      {isCreateOpen && (
+      {canManageCounselors && isCreateOpen && (
         <CounselorFormModal
           mode="create"
           dataSource={dataSource}

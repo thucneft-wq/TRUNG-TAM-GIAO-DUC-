@@ -4,15 +4,23 @@ import {
 } from '../domain/kpiPolicy';
 import { getDashboardMetricsByTimeRange, INITIAL_COUNSELORS } from '../mockData';
 import {
+  AnalyticsFilterOptions,
+  AnalyticsFilters,
   AdminUser,
+  AuditLogItem,
   AuthSession,
   Counselor,
   CounselorPeriodMetrics,
   CreateCounselorInput,
   DashboardMetrics,
+  FeedbackAnalytics,
   KpiEvidence,
   KPIItem,
   RelationshipSummary,
+  StudentTrendAnalytics,
+  Student,
+  CreateStudentInput,
+  UpdateStudentInput,
   TimeRange,
   UpdateCounselorInput,
 } from '../types';
@@ -31,21 +39,24 @@ export interface AdminDataResult {
   warning?: string;
 }
 
+export interface AnalyticsDataResult {
+  filterOptions: AnalyticsFilterOptions;
+  studentTrends: StudentTrendAnalytics;
+  feedback: FeedbackAnalytics;
+}
+
 export const DEMO_ACCOUNTS = [
   {
     label: 'Quản trị giám sát',
     email: 'admin@campus-counseling.edu',
     role: 'Quản trị giám sát',
+    roleCode: 'admin',
   },
   {
-    label: 'Trưởng nhóm chuyên môn',
-    email: 'admin.lead@campus-counseling.edu',
-    role: 'Trưởng nhóm chuyên môn',
-  },
-  {
-    label: 'Giám sát dịch vụ',
-    email: 'supervisor@campus-counseling.edu',
-    role: 'Giám sát dịch vụ',
+    label: 'Tư vấn viên',
+    email: 'counselor@campus-counseling.edu',
+    role: 'Tư vấn viên',
+    roleCode: 'counselor',
   },
 ] as const;
 
@@ -55,10 +66,21 @@ const COUNSELORS_ENDPOINT = import.meta.env.VITE_COUNSELORS_ENDPOINT ?? '/admin/
 const COUNSELOR_DETAIL_ENDPOINT =
   import.meta.env.VITE_COUNSELOR_DETAIL_ENDPOINT ?? '/admin/counselors/:id';
 const DASHBOARD_ENDPOINT = import.meta.env.VITE_DASHBOARD_ENDPOINT ?? '/admin/dashboard';
+const ANALYTICS_FILTERS_ENDPOINT =
+  import.meta.env.VITE_ANALYTICS_FILTERS_ENDPOINT ?? '/admin/analytics/filters';
+const STUDENT_TRENDS_ENDPOINT =
+  import.meta.env.VITE_STUDENT_TRENDS_ENDPOINT ?? '/admin/analytics/student-trends';
+const FEEDBACK_ANALYTICS_ENDPOINT =
+  import.meta.env.VITE_FEEDBACK_ANALYTICS_ENDPOINT ?? '/admin/analytics/feedback';
+const ANALYTICS_EXPORT_ENDPOINT =
+  import.meta.env.VITE_ANALYTICS_EXPORT_ENDPOINT ?? '/admin/analytics/export';
+const AUDIT_LOGS_ENDPOINT = import.meta.env.VITE_AUDIT_LOGS_ENDPOINT ?? '/admin/audit-logs';
+const STUDENTS_ENDPOINT = import.meta.env.VITE_STUDENTS_ENDPOINT ?? '/students';
 const parsedTimeout = Number(import.meta.env.VITE_API_TIMEOUT_MS ?? '10000');
 const API_TIMEOUT_MS = Number.isFinite(parsedTimeout) && parsedTimeout > 0 ? parsedTimeout : 10000;
 const SESSION_STORAGE_KEY = 'digital-twin-admin-session';
 const MOCK_COUNSELORS_STORAGE_KEY = 'digital-twin-admin-mock-counselors-v1';
+const MOCK_STUDENTS_STORAGE_KEY = 'digital-twin-admin-mock-students-v1';
 export const UNAUTHORIZED_EVENT = 'digital-twin:unauthorized';
 
 const API_PERIOD_BY_TIME_RANGE: Record<TimeRange, string> = {
@@ -87,6 +109,18 @@ const PROFILE_LABEL_TRANSLATIONS: Record<string, string> = {
 };
 
 export const isRemoteApiConfigured = API_BASE_URL.length > 0;
+export const isCrudDemoMode = (import.meta.env.VITE_CRUD_DEMO_MODE ?? 'false') === 'true';
+export const isWebCrudEnabled = (import.meta.env.VITE_WEB_CRUD_ENABLED ?? 'false') === 'true';
+export const googleStudentEntryUrl = (
+  import.meta.env.VITE_GOOGLE_STUDENT_ENTRY_URL ?? import.meta.env.VITE_GOOGLE_STUDENT_FORM_URL ?? ''
+).trim();
+export const googleCounselorEntryUrl = (
+  import.meta.env.VITE_GOOGLE_COUNSELOR_ENTRY_URL ?? googleStudentEntryUrl
+).trim();
+const parsedStudentSyncInterval = Number(import.meta.env.VITE_STUDENT_SYNC_INTERVAL_MS ?? '10000');
+export const studentSyncIntervalMs = Number.isFinite(parsedStudentSyncInterval) && parsedStudentSyncInterval >= 3000
+  ? parsedStudentSyncInterval
+  : 10000;
 
 const localizeCounselorName = (name: string): string =>
   name.replace(/^Demo Counselor\s+([A-Z])$/i, 'Tư vấn viên mẫu $1');
@@ -130,6 +164,47 @@ const saveMockCounselors = (counselors: Counselor[]): void => {
 
 const getActiveMockCounselors = (): Counselor[] =>
   getMockCounselors().filter((counselor) => counselor.status !== 'INACTIVE');
+
+const INITIAL_STUDENTS: Student[] = [
+  {
+    id: '20000000-0000-4000-8000-000000000001',
+    firstName: 'Học viên',
+    lastName: 'Mẫu',
+    name: 'Học viên Mẫu',
+    gender: 'UNSPECIFIED',
+    phoneNumber: '000-100-0001',
+    email: 'student@example.invalid',
+    dateOfBirth: '2010-01-01',
+    status: 'ACTIVE',
+    schoolId: null,
+    addressId: null,
+    assignedCounselorId: null,
+    assignedCounselorName: 'Tư vấn viên mẫu',
+    createdAt: new Date().toISOString(),
+    updatedAt: null,
+  },
+];
+
+const getMockStudents = (): Student[] => {
+  try {
+    const stored = window.localStorage.getItem(MOCK_STUDENTS_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as Student[];
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {
+    // Use in-memory fixtures when storage is unavailable.
+  }
+  return INITIAL_STUDENTS;
+};
+
+const saveMockStudents = (students: Student[]): void => {
+  try {
+    window.localStorage.setItem(MOCK_STUDENTS_STORAGE_KEY, JSON.stringify(students));
+  } catch {
+    throw new ApiError('Không thể lưu thay đổi Student demo trên trình duyệt này.');
+  }
+};
 
 const createUnavailableKpis = (): KPIItem[] =>
   OFFICIAL_KPI_DEFINITIONS.map((definition) => ({
@@ -453,6 +528,52 @@ const extractCounselorRecord = (payload: unknown): unknown => {
   return pick(root, 'counselor', 'item') ?? root;
 };
 
+const normalizeStudent = (value: unknown): Student => {
+  if (!isRecord(value)) throw new ApiError('API Student trả về bản ghi không hợp lệ.');
+  const firstName = toStringValue(pick(value, 'firstName', 'first_name'));
+  const lastName = toStringValue(pick(value, 'lastName', 'last_name'));
+  const id = toStringValue(pick(value, 'id', 'studentId', 'student_id'));
+  if (!id || !firstName || !lastName) {
+    throw new ApiError('Bản ghi Student bị thiếu mã hoặc họ tên.');
+  }
+  return {
+    id,
+    firstName,
+    lastName,
+    name: toStringValue(pick(value, 'name', 'fullName', 'full_name'), `${firstName} ${lastName}`),
+    gender: toStringValue(pick(value, 'gender')) || null,
+    phoneNumber: toStringValue(pick(value, 'phoneNumber', 'phone_number')),
+    email: toStringValue(pick(value, 'email')) || null,
+    dateOfBirth: toStringValue(pick(value, 'dateOfBirth', 'date_of_birth')) || null,
+    status: toStringValue(pick(value, 'status'), 'ACTIVE').toUpperCase() === 'INACTIVE'
+      ? 'INACTIVE'
+      : 'ACTIVE',
+    schoolId: toStringValue(pick(value, 'schoolId', 'school_id')) || null,
+    addressId: toStringValue(pick(value, 'addressId', 'address_id')) || null,
+    assignedCounselorId: toStringValue(
+      pick(value, 'assignedCounselorId', 'assigned_counselor_id'),
+    ) || null,
+    assignedCounselorName: toStringValue(
+      pick(value, 'assignedCounselorName', 'assigned_counselor_name'),
+    ) || null,
+    createdAt: toStringValue(pick(value, 'createdAt', 'created_at')),
+    updatedAt: toStringValue(pick(value, 'updatedAt', 'updated_at')) || null,
+  };
+};
+
+const extractStudentArray = (payload: unknown): Student[] => {
+  if (Array.isArray(payload)) return payload.map(normalizeStudent);
+  const root = unwrapRecord(payload);
+  const items = pick(root, 'students', 'items', 'results');
+  if (!Array.isArray(items)) throw new ApiError('API Student không trả về danh sách hợp lệ.');
+  return items.map(normalizeStudent);
+};
+
+const extractStudentRecord = (payload: unknown): Student => {
+  const root = unwrapRecord(payload);
+  return normalizeStudent(pick(root, 'student', 'item') ?? root);
+};
+
 const normalizeDashboard = (payload: unknown): DashboardMetrics => {
   const root = unwrapRecord(payload);
   const hasDashboardData =
@@ -472,6 +593,8 @@ const normalizeDashboard = (payload: unknown): DashboardMetrics => {
   return {
     totalStudents: toNumberValue(pick(root, 'totalStudents', 'total_students')),
     activeCounselors: toNumberValue(pick(root, 'activeCounselors', 'active_counselors')),
+    totalTests: toNumberValue(pick(root, 'totalTests', 'total_tests')),
+    totalTestAttempts: toNumberValue(pick(root, 'totalTestAttempts', 'total_test_attempts')),
     totalBookings: toNumberValue(pick(root, 'totalBookings', 'total_bookings')),
     passedCounselors: toNumberValue(pick(root, 'passedCounselors', 'passed_counselors')),
     notPassedCounselors: toNumberValue(
@@ -506,6 +629,108 @@ const normalizeDashboard = (payload: unknown): DashboardMetrics => {
     syncNode: toStringValue(pick(root, 'syncNode', 'sync_node'), 'API hệ thống'),
   };
 };
+
+const normalizeFilterOptions = (payload: unknown): AnalyticsFilterOptions => {
+  const root = unwrapRecord(payload);
+  return {
+    counselors: toArray(pick(root, 'counselors')).map((item) => {
+      const record = isRecord(item) ? item : {};
+      return {
+        id: toStringValue(pick(record, 'id', 'counselorId', 'counselor_id')),
+        name: toStringValue(pick(record, 'name'), 'Tư vấn viên'),
+      };
+    }).filter((item) => item.id.length > 0),
+    tests: toArray(pick(root, 'tests')).map((item) => {
+      const record = isRecord(item) ? item : {};
+      const type = toStringValue(pick(record, 'type', 'testType', 'test_type'));
+      return {
+        id: toStringValue(pick(record, 'id', 'testId', 'test_id')),
+        name: toStringValue(pick(record, 'name', 'testName', 'test_name'), 'Bài test'),
+        type: type || null,
+      };
+    }).filter((item) => item.id.length > 0),
+    categories: toArray(pick(root, 'categories'))
+      .map((item) => toStringValue(item))
+      .filter(Boolean),
+  };
+};
+
+const normalizeStudentTrends = (payload: unknown): StudentTrendAnalytics => {
+  const root = unwrapRecord(payload);
+  return {
+    period: toStringValue(pick(root, 'period')),
+    sampleSize: toNumberValue(pick(root, 'sampleSize', 'sample_size')),
+    minimumSampleSize: toNumberValue(
+      pick(root, 'minimumSampleSize', 'minimum_sample_size'),
+      5,
+    ),
+    suppressed: pick(root, 'suppressed') === true,
+    totalAssessments: toNumberValue(pick(root, 'totalAssessments', 'total_assessments')),
+    totalTestResults: toNumberValue(pick(root, 'totalTestResults', 'total_test_results')),
+    timeline: toArray(pick(root, 'timeline')).map((item) => {
+      const record = isRecord(item) ? item : {};
+      return {
+        period: toStringValue(pick(record, 'period', 'label')),
+        assessments: toNumberValue(pick(record, 'assessments')),
+        testResults: toNumberValue(pick(record, 'testResults', 'test_results')),
+      };
+    }),
+    categoryDistribution: toArray(
+      pick(root, 'categoryDistribution', 'category_distribution'),
+    ).map((item) => {
+      const record = isRecord(item) ? item : {};
+      return {
+        category: toStringValue(pick(record, 'category'), 'Chưa phân loại'),
+        count: toNumberValue(pick(record, 'count')),
+      };
+    }),
+  };
+};
+
+const normalizeFeedbackAnalytics = (payload: unknown): FeedbackAnalytics => {
+  const root = unwrapRecord(payload);
+  const distributionValue = pick(root, 'distribution');
+  const distribution = isRecord(distributionValue) ? distributionValue : {};
+  const averageRatingValue = pick(root, 'averageRating', 'average_rating');
+  return {
+    period: toStringValue(pick(root, 'period')),
+    sampleSize: toNumberValue(pick(root, 'sampleSize', 'sample_size')),
+    minimumSampleSize: toNumberValue(
+      pick(root, 'minimumSampleSize', 'minimum_sample_size'),
+      5,
+    ),
+    suppressed: pick(root, 'suppressed') === true,
+    averageRating: averageRatingValue === null || averageRatingValue === undefined
+      ? null
+      : toNumberValue(averageRatingValue),
+    distribution: {
+      positive: toNumberValue(pick(distribution, 'positive')),
+      neutral: toNumberValue(pick(distribution, 'neutral')),
+      negative: toNumberValue(pick(distribution, 'negative')),
+    },
+    timeline: toArray(pick(root, 'timeline')).map((item) => {
+      const record = isRecord(item) ? item : {};
+      const rating = pick(record, 'averageRating', 'average_rating');
+      return {
+        period: toStringValue(pick(record, 'period', 'label')),
+        positive: toNumberValue(pick(record, 'positive')),
+        neutral: toNumberValue(pick(record, 'neutral')),
+        negative: toNumberValue(pick(record, 'negative')),
+        averageRating: rating === null || rating === undefined ? null : toNumberValue(rating),
+      };
+    }),
+  };
+};
+
+const analyticsQuery = (
+  timeRange: TimeRange,
+  filters: AnalyticsFilters,
+): Record<string, string> => ({
+  period: API_PERIOD_BY_TIME_RANGE[timeRange],
+  ...(filters.counselorId ? { counselorId: filters.counselorId } : {}),
+  ...(filters.testId ? { testId: filters.testId } : {}),
+  ...(filters.category ? { category: filters.category } : {}),
+});
 
 const buildUrl = (endpoint: string, query?: Record<string, string>): string => {
   const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
@@ -608,6 +833,7 @@ export const loginAdmin = async (credentials: LoginCredentials): Promise<AuthSes
         name: account.label,
         email: account.email,
         role: account.role,
+        roleCode: account.roleCode,
       },
     };
   }
@@ -623,11 +849,14 @@ export const loginAdmin = async (credentials: LoginCredentials): Promise<AuthSes
   const userValue = pick(root, 'user', 'admin', 'account');
   const userRecord = isRecord(userValue) ? userValue : {};
   const email = toStringValue(pick(userRecord, 'email'), credentials.email.trim());
+  const rawRole = toStringValue(pick(userRecord, 'role')).toLowerCase();
+  const roleCode: AdminUser['roleCode'] = rawRole === 'counselor' ? 'counselor' : 'admin';
   const user: AdminUser = {
     id: toStringValue(pick(userRecord, 'id', 'userId', 'user_id'), email),
     name: localizeProfileLabel(pick(userRecord, 'name', 'fullName', 'full_name'), 'Người quản trị'),
     email,
-    role: localizeProfileLabel(pick(userRecord, 'role'), 'Quản trị viên'),
+    role: roleCode === 'counselor' ? 'Tư vấn viên' : 'Quản trị viên',
+    roleCode,
   };
 
   return {
@@ -677,6 +906,164 @@ export const loadAdminData = async (
       }`.trim(),
     };
   }
+};
+
+export const loadAnalyticsData = async (
+  session: AuthSession,
+  timeRange: TimeRange,
+  filters: AnalyticsFilters,
+): Promise<AnalyticsDataResult> => {
+  if (!isRemoteApiConfigured || session.source === 'mock') {
+    const counselors = getActiveMockCounselors().filter(
+      (counselor) => !filters.counselorId || counselor.id === filters.counselorId,
+    );
+    const totalAssessments = counselors.reduce(
+      (sum, counselor) => sum + counselor.timeRangeMetrics[timeRange].completedSessions,
+      0,
+    );
+    const totalTestResults = counselors.reduce(
+      (sum, counselor) => sum + counselor.timeRangeMetrics[timeRange].completedTests,
+      0,
+    );
+    const feedbackCount = counselors.reduce(
+      (sum, counselor) => sum + counselor.timeRangeMetrics[timeRange].feedbackCount,
+      0,
+    );
+    const weightedRating = counselors.reduce((sum, counselor) => {
+      const metrics = counselor.timeRangeMetrics[timeRange];
+      return sum + metrics.satisfactionScore * metrics.feedbackCount;
+    }, 0);
+    const positive = Math.round(feedbackCount * 0.7);
+    const neutral = Math.round(feedbackCount * 0.2);
+    const negative = Math.max(0, feedbackCount - positive - neutral);
+    const period = API_PERIOD_BY_TIME_RANGE[timeRange];
+
+    return {
+      filterOptions: {
+        counselors: getActiveMockCounselors().map((counselor) => ({
+          id: counselor.id,
+          name: counselor.name,
+        })),
+        tests: [],
+        categories: ['Tổng hợp ẩn danh'],
+      },
+      studentTrends: {
+        period,
+        sampleSize: totalAssessments + totalTestResults,
+        minimumSampleSize: 5,
+        suppressed: false,
+        totalAssessments,
+        totalTestResults,
+        timeline: [{ period, assessments: totalAssessments, testResults: totalTestResults }],
+        categoryDistribution: [{
+          category: 'Tổng hợp ẩn danh',
+          count: totalAssessments + totalTestResults,
+        }],
+      },
+      feedback: {
+        period,
+        sampleSize: feedbackCount,
+        minimumSampleSize: 5,
+        suppressed: false,
+        averageRating: feedbackCount === 0
+          ? null
+          : Math.round((weightedRating / feedbackCount) * 100) / 100,
+        distribution: { positive, neutral, negative },
+        timeline: [{
+          period,
+          positive,
+          neutral,
+          negative,
+          averageRating: feedbackCount === 0
+            ? null
+            : Math.round((weightedRating / feedbackCount) * 100) / 100,
+        }],
+      },
+    };
+  }
+
+  const query = analyticsQuery(timeRange, filters);
+  const [filterPayload, studentPayload, feedbackPayload] = await Promise.all([
+    requestJson(ANALYTICS_FILTERS_ENDPOINT, { headers: authorizationHeaders(session) }),
+    requestJson(STUDENT_TRENDS_ENDPOINT, { headers: authorizationHeaders(session) }, query),
+    requestJson(FEEDBACK_ANALYTICS_ENDPOINT, { headers: authorizationHeaders(session) }, query),
+  ]);
+
+  return {
+    filterOptions: normalizeFilterOptions(filterPayload),
+    studentTrends: normalizeStudentTrends(studentPayload),
+    feedback: normalizeFeedbackAnalytics(feedbackPayload),
+  };
+};
+
+export const loadAuditLogs = async (session: AuthSession): Promise<AuditLogItem[]> => {
+  if (!isRemoteApiConfigured || session.source === 'mock') return [];
+  const payload = await requestJson(
+    AUDIT_LOGS_ENDPOINT,
+    { headers: authorizationHeaders(session) },
+    { limit: '100' },
+  );
+  const root = unwrapRecord(payload);
+  return toArray(pick(root, 'auditLogs', 'audit_logs')).map((item) => {
+    const record = isRecord(item) ? item : {};
+    return {
+      auditLogId: toStringValue(pick(record, 'audit_log_id', 'auditLogId')),
+      actorRole: toStringValue(pick(record, 'actor_role', 'actorRole'), 'unknown'),
+      action: toStringValue(pick(record, 'action')),
+      entityType: toStringValue(pick(record, 'entity_type', 'entityType')),
+      entityId: toStringValue(pick(record, 'entity_id', 'entityId')) || null,
+      createdAt: toStringValue(pick(record, 'created_at', 'createdAt')),
+    };
+  });
+};
+
+export const downloadAnalyticsExport = async (
+  session: AuthSession,
+  timeRange: TimeRange,
+  filters: AnalyticsFilters,
+  type: 'overview' | 'student_trends' | 'feedback',
+): Promise<void> => {
+  const query = { ...analyticsQuery(timeRange, filters), type };
+  let blob: Blob;
+  let filename = `${type}-${API_PERIOD_BY_TIME_RANGE[timeRange]}.csv`;
+
+  if (!isRemoteApiConfigured || session.source === 'mock') {
+    const data = await loadAnalyticsData(session, timeRange, filters);
+    const lines = type === 'feedback'
+      ? [
+          ['Phân loại', 'Số lượng'],
+          ['Tích cực', data.feedback.distribution.positive],
+          ['Trung lập', data.feedback.distribution.neutral],
+          ['Tiêu cực', data.feedback.distribution.negative],
+        ]
+      : [
+          ['Chỉ số', 'Giá trị'],
+          ['Assessment', data.studentTrends.totalAssessments],
+          ['Kết quả test', data.studentTrends.totalTestResults],
+          ['Feedback', data.feedback.sampleSize],
+        ];
+    const content = `\uFEFF${lines.map((line) => line.join(',')).join('\r\n')}\r\n`;
+    blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+  } else {
+    const response = await fetch(buildUrl(ANALYTICS_EXPORT_ENDPOINT, query), {
+      headers: { Accept: 'text/csv', ...authorizationHeaders(session) },
+      credentials: 'include',
+    });
+    if (!response.ok) throw new ApiError(getHttpErrorMessage(response.status), response.status);
+    blob = await response.blob();
+    const disposition = response.headers.get('content-disposition');
+    const match = disposition?.match(/filename="?([^";]+)"?/i);
+    if (match?.[1]) filename = match[1];
+  }
+
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 };
 
 export const loadCounselorDetail = async (
@@ -819,6 +1206,99 @@ export const deactivateCounselor = async (
   });
 };
 
+export const loadStudents = async (session: AuthSession): Promise<Student[]> => {
+  if (!isRemoteApiConfigured || session.source === 'mock') {
+    return getMockStudents().filter((student) => student.status === 'ACTIVE');
+  }
+  const payload = await requestJson(STUDENTS_ENDPOINT, {
+    headers: authorizationHeaders(session),
+  });
+  return extractStudentArray(payload);
+};
+
+export const createStudent = async (
+  session: AuthSession,
+  input: CreateStudentInput,
+): Promise<Student> => {
+  if (!isRemoteApiConfigured || session.source === 'mock') {
+    const student: Student = {
+      id: crypto.randomUUID(),
+      firstName: input.firstName,
+      lastName: input.lastName,
+      name: `${input.firstName} ${input.lastName}`.trim(),
+      gender: input.gender ?? null,
+      phoneNumber: input.phoneNumber,
+      email: input.email ?? null,
+      dateOfBirth: input.dateOfBirth ?? null,
+      status: input.status,
+      schoolId: null,
+      addressId: null,
+      assignedCounselorId: session.user.roleCode === 'counselor' ? session.user.id : null,
+      assignedCounselorName: session.user.roleCode === 'counselor' ? session.user.name : null,
+      createdAt: new Date().toISOString(),
+      updatedAt: null,
+    };
+    saveMockStudents([...getMockStudents(), student]);
+    return student;
+  }
+  const payload = await requestJson(STUDENTS_ENDPOINT, {
+    method: 'POST',
+    headers: authorizationHeaders(session),
+    body: JSON.stringify(input),
+  });
+  return extractStudentRecord(payload);
+};
+
+export const updateStudent = async (
+  session: AuthSession,
+  studentId: string,
+  input: UpdateStudentInput,
+): Promise<Student> => {
+  if (!isRemoteApiConfigured || session.source === 'mock') {
+    const students = getMockStudents();
+    const index = students.findIndex((student) => student.id === studentId);
+    if (index < 0) throw new ApiError('Không tìm thấy Student.', 404);
+    const current = students[index];
+    const firstName = input.firstName ?? current.firstName;
+    const lastName = input.lastName ?? current.lastName;
+    students[index] = {
+      ...current,
+      ...input,
+      firstName,
+      lastName,
+      name: `${firstName} ${lastName}`.trim(),
+      updatedAt: new Date().toISOString(),
+    };
+    saveMockStudents(students);
+    return students[index];
+  }
+  const endpoint = `${STUDENTS_ENDPOINT}/${encodeURIComponent(studentId)}`;
+  const payload = await requestJson(endpoint, {
+    method: 'PATCH',
+    headers: authorizationHeaders(session),
+    body: JSON.stringify(input),
+  });
+  return extractStudentRecord(payload);
+};
+
+export const deactivateStudent = async (
+  session: AuthSession,
+  studentId: string,
+): Promise<void> => {
+  if (!isRemoteApiConfigured || session.source === 'mock') {
+    const students = getMockStudents();
+    const index = students.findIndex((student) => student.id === studentId);
+    if (index < 0) throw new ApiError('Không tìm thấy Student.', 404);
+    students[index] = { ...students[index], status: 'INACTIVE', updatedAt: new Date().toISOString() };
+    saveMockStudents(students);
+    return;
+  }
+  await requestJson(`${STUDENTS_ENDPOINT}/${encodeURIComponent(studentId)}`, {
+    method: 'DELETE',
+    headers: authorizationHeaders(session),
+  });
+};
+
 export const saveSession = (session: AuthSession): void => {
   window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
 };
@@ -835,6 +1315,7 @@ export const restoreSession = (): AuthSession | null => {
         ...session.user,
         name: localizeProfileLabel(session.user.name, 'Người quản trị'),
         role: localizeProfileLabel(session.user.role, 'Quản trị viên'),
+        roleCode: session.user.roleCode === 'counselor' ? 'counselor' : 'admin',
       },
     };
   } catch {

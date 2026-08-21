@@ -34,7 +34,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
     // Validation logic
     if (!email.trim()) {
-      setErrorMsg('Vui lòng nhập email quản trị của đơn vị.');
+      setErrorMsg('Vui lòng nhập email tài khoản của đơn vị.');
       return;
     }
 
@@ -45,7 +45,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     }
 
     if (!password.trim()) {
-      setErrorMsg('Vui lòng nhập mật khẩu quản trị.');
+      setErrorMsg('Vui lòng nhập mật khẩu tài khoản.');
       return;
     }
 
@@ -98,7 +98,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             Trung tâm Tham vấn Tâm lý Học đường
           </h2>
           <p className="mt-1 text-xs text-slate-400 font-medium">
-            Nền tảng phân tích quản trị Bản sao số
+            Cổng quản trị dành cho Admin và Counselor
           </p>
         </div>
 
@@ -150,7 +150,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                   htmlFor="input-password"
                   className="block text-xs font-semibold uppercase tracking-wider text-slate-300"
                 >
-                  Mật khẩu quản trị
+                  Mật khẩu
                 </label>
                 <span className="text-2xs text-slate-400">
                   {isRemoteApiConfigured ? 'Được xác thực bởi máy chủ' : 'Chế độ demo: nhập từ 6 ký tự bất kỳ'}
@@ -191,7 +191,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 {isLoading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>{isRemoteApiConfigured ? 'Đang kết nối API quản trị...' : 'Đang xác thực phiên...'}</span>
+                    <span>{isRemoteApiConfigured ? 'Đang kết nối API hệ thống...' : 'Đang xác thực phiên...'}</span>
                   </>
                 ) : (
                   <>

@@ -44,6 +44,7 @@ interface CounselorDetailScreenProps {
   onUpdateCounselor: (input: CreateCounselorInput) => Promise<void>;
   onDeactivateCounselor: () => Promise<void>;
   dataSource: 'api' | 'mock';
+  canManageCounselors: boolean;
 }
 
 export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
@@ -56,6 +57,7 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
   onUpdateCounselor,
   onDeactivateCounselor,
   dataSource,
+  canManageCounselors,
 }) => {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeactivateOpen, setIsDeactivateOpen] = useState(false);
@@ -101,7 +103,7 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
           <span>Quay lại bảng hiệu suất</span>
         </button>
 
-        <div className="flex flex-wrap items-center gap-2">
+        {canManageCounselors && <div className="flex flex-wrap items-center gap-2">
           <button
             id="btn-edit-counselor"
             type="button"
@@ -123,7 +125,7 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
             <UserMinus className="h-3.5 w-3.5" />
             Ngừng hoạt động
           </button>
-        </div>
+        </div>}
 
         {/* Quick Counselor Switcher */}
         <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -489,7 +491,7 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
         </div>
       </div>
 
-      {isEditOpen && (
+      {canManageCounselors && isEditOpen && (
         <CounselorFormModal
           mode="edit"
           counselor={counselor}
@@ -502,7 +504,7 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
         />
       )}
 
-      {isDeactivateOpen && (
+      {canManageCounselors && isDeactivateOpen && (
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
           role="dialog"

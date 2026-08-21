@@ -8,8 +8,13 @@ import {
   LogOut,
   ChevronRight,
   Activity,
+  TrendingUp,
+  MessageSquareHeart,
+  FileClock,
   LoaderCircle,
   X,
+  GraduationCap,
+  Network,
 } from 'lucide-react';
 import { ScreenType } from '../types';
 
@@ -22,6 +27,8 @@ interface SidebarProps {
   selectedCounselorId?: string | null;
   dataSource: 'api' | 'mock';
   isDataLoading: boolean;
+  roleCode: 'admin' | 'counselor';
+  crudDemoMode: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -33,7 +40,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedCounselorId,
   dataSource,
   isDataLoading,
+  roleCode,
+  crudDemoMode,
 }) => {
+  const isAdmin = roleCode === 'admin';
   return (
     <>
       {/* Mobile Backdrop */}
@@ -90,75 +100,218 @@ export const Sidebar: React.FC<SidebarProps> = ({
               Chức năng chính
             </div>
             <nav aria-label="Các trang quản trị" className="space-y-1.5">
-              {/* Dashboard Screen */}
               <button
-                id="nav-link-dashboard"
+                id="nav-link-students"
                 type="button"
-                aria-current={currentScreen === 'dashboard' ? 'page' : undefined}
+                aria-current={currentScreen === 'students' ? 'page' : undefined}
                 onClick={() => {
-                  onNavigate('dashboard');
+                  onNavigate('students');
                   onClose();
                 }}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
-                  currentScreen === 'dashboard'
+                  currentScreen === 'students'
                     ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
                     : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <LayoutDashboard className="w-4 h-4" />
-                  <span>Tổng quan bảng điều khiển</span>
+                  <GraduationCap className="w-4 h-4" />
+                  <span>Quản lý Student</span>
                 </div>
-                {currentScreen === 'dashboard' && <ChevronRight className="w-3.5 h-3.5 text-blue-200" />}
+                {currentScreen === 'students' && <ChevronRight className="w-3.5 h-3.5 text-blue-200" />}
               </button>
 
-              {/* Counselor Performance Screen */}
-              <button
-                id="nav-link-counselors"
-                type="button"
-                aria-current={currentScreen === 'counselors' ? 'page' : undefined}
-                onClick={() => {
-                  onNavigate('counselors');
-                  onClose();
-                }}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
-                  currentScreen === 'counselors'
-                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Users2 className="w-4 h-4" />
-                  <span>Hiệu suất tư vấn viên</span>
-                </div>
-                {currentScreen === 'counselors' && <ChevronRight className="w-3.5 h-3.5 text-blue-200" />}
-              </button>
+              {isAdmin && (
+                <button
+                  id="nav-link-dashboard"
+                  type="button"
+                  aria-current={currentScreen === 'dashboard' ? 'page' : undefined}
+                  onClick={() => {
+                    onNavigate('dashboard');
+                    onClose();
+                  }}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                    currentScreen === 'dashboard'
+                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
+                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <LayoutDashboard className="w-4 h-4" />
+                    <span>Tổng quan bảng điều khiển</span>
+                  </div>
+                  {currentScreen === 'dashboard' && <ChevronRight className="w-3.5 h-3.5 text-blue-200" />}
+                </button>
+              )}
 
-              {/* Counselor Detail (active when viewing detail) */}
-              <button
-                id="nav-link-counselor-detail"
-                type="button"
-                aria-current={currentScreen === 'counselor-detail' ? 'page' : undefined}
-                onClick={() => {
-                  onNavigate('counselor-detail');
-                  onClose();
-                }}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
-                  currentScreen === 'counselor-detail'
-                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <FileCheck2 className="w-4 h-4" />
-                  <span>Chi tiết KPI tư vấn viên</span>
-                </div>
-                {selectedCounselorId && (
-                  <span className="text-2xs bg-slate-800 text-teal-300 px-1.5 py-0.5 rounded font-mono">
-                    {selectedCounselorId}
-                  </span>
-                )}
-              </button>
+              {isAdmin && (
+                <button
+                  id="nav-link-knowledge-graph"
+                  type="button"
+                  aria-current={currentScreen === 'knowledge-graph' ? 'page' : undefined}
+                  onClick={() => {
+                    onNavigate('knowledge-graph');
+                    onClose();
+                  }}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                    currentScreen === 'knowledge-graph'
+                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
+                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                  }`}
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Network className="h-4 w-4 shrink-0" />
+                    <span>Knowledge Graph</span>
+                  </div>
+                  {currentScreen === 'knowledge-graph' ? (
+                    <ChevronRight className="h-3.5 w-3.5 text-blue-200" />
+                  ) : (
+                    <span className="rounded border border-teal-700/70 bg-teal-950/70 px-1.5 py-0.5 text-2xs font-bold text-teal-300">
+                      Sắp có
+                    </span>
+                  )}
+                </button>
+              )}
+
+              {isAdmin && (
+                <button
+                  id="nav-link-counselor-management"
+                  type="button"
+                  aria-current={currentScreen === 'counselor-management' ? 'page' : undefined}
+                  onClick={() => {
+                    onNavigate('counselor-management');
+                    onClose();
+                  }}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                    currentScreen === 'counselor-management'
+                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
+                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Users2 className="w-4 h-4" />
+                    <span>Quản lý tư vấn viên</span>
+                  </div>
+                  {currentScreen === 'counselor-management' && <ChevronRight className="w-3.5 h-3.5 text-blue-200" />}
+                </button>
+              )}
+
+              {isAdmin && (
+                <button
+                  id="nav-link-counselors"
+                  type="button"
+                  aria-current={currentScreen === 'counselors' ? 'page' : undefined}
+                  onClick={() => {
+                    onNavigate('counselors');
+                    onClose();
+                  }}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                    currentScreen === 'counselors'
+                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
+                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Activity className="w-4 h-4" />
+                    <span>Hiệu suất tư vấn viên</span>
+                  </div>
+                  {currentScreen === 'counselors' && <ChevronRight className="w-3.5 h-3.5 text-blue-200" />}
+                </button>
+              )}
+
+              {isAdmin && (
+                <button
+                  id="nav-link-counselor-detail"
+                  type="button"
+                  aria-current={currentScreen === 'counselor-detail' ? 'page' : undefined}
+                  onClick={() => {
+                    onNavigate('counselor-detail');
+                    onClose();
+                  }}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                    currentScreen === 'counselor-detail'
+                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
+                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <FileCheck2 className="w-4 h-4" />
+                    <span>Chi tiết KPI tư vấn viên</span>
+                  </div>
+                  {selectedCounselorId && (
+                    <span className="text-2xs bg-slate-800 text-teal-300 px-1.5 py-0.5 rounded font-mono">
+                      {selectedCounselorId}
+                    </span>
+                  )}
+                </button>
+              )}
+
+              {isAdmin && !crudDemoMode && (
+                <>
+                  <button
+                    id="nav-link-student-trends"
+                    type="button"
+                    aria-current={currentScreen === 'student-trends' ? 'page' : undefined}
+                    onClick={() => {
+                      onNavigate('student-trends');
+                      onClose();
+                    }}
+                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                      currentScreen === 'student-trends'
+                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
+                        : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <TrendingUp className="w-4 h-4" />
+                      <span>Xu hướng học viên</span>
+                    </div>
+                    {currentScreen === 'student-trends' && <ChevronRight className="w-3.5 h-3.5 text-blue-200" />}
+                  </button>
+
+                  <button
+                    id="nav-link-feedback-analytics"
+                    type="button"
+                    aria-current={currentScreen === 'feedback-analytics' ? 'page' : undefined}
+                    onClick={() => {
+                      onNavigate('feedback-analytics');
+                      onClose();
+                    }}
+                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                      currentScreen === 'feedback-analytics'
+                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
+                        : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <MessageSquareHeart className="w-4 h-4" />
+                      <span>Phân tích feedback</span>
+                    </div>
+                    {currentScreen === 'feedback-analytics' && <ChevronRight className="w-3.5 h-3.5 text-blue-200" />}
+                  </button>
+
+                  <button
+                    id="nav-link-audit-logs"
+                    type="button"
+                    aria-current={currentScreen === 'audit-logs' ? 'page' : undefined}
+                    onClick={() => {
+                      onNavigate('audit-logs');
+                      onClose();
+                    }}
+                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                      currentScreen === 'audit-logs'
+                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
+                        : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <FileClock className="w-4 h-4" />
+                      <span>Nhật ký bảo mật</span>
+                    </div>
+                    {currentScreen === 'audit-logs' && <ChevronRight className="w-3.5 h-3.5 text-blue-200" />}
+                  </button>
+                </>
+              )}
             </nav>
           </div>
 
@@ -182,7 +335,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </span>
             </div>
             <p className="text-2xs text-slate-400 leading-relaxed">
-              Dữ liệu tư vấn viên, lịch hẹn và 5 KPI đã được chuẩn hóa theo kỳ báo cáo đã chọn.
+              {crudDemoMode
+                ? 'Dữ liệu quản trị, hồ sơ tư vấn viên và đánh giá 5 KPI theo kỳ báo cáo đã chọn.'
+                : isAdmin
+                ? 'Dữ liệu tư vấn viên, lịch hẹn và 5 KPI đã được chuẩn hóa theo kỳ báo cáo đã chọn.'
+                : 'Tài khoản Counselor chỉ truy cập các Student đang được phân công.'}
             </p>
             <div className="pt-2 border-t border-slate-700/60 flex items-center justify-between text-2xs text-slate-400 font-mono">
               <span>Nguồn: {dataSource === 'api' ? 'API hệ thống' : 'Demo cục bộ'}</span>

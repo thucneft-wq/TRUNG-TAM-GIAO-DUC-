@@ -12,6 +12,8 @@ import {
   Layers,
   ChevronRight,
   Filter,
+  FlaskConical,
+  Download,
 } from 'lucide-react';
 import { Counselor, DashboardMetrics, TimeRange, ScreenType } from '../types';
 import { getCounselorEvaluation } from '../domain/kpiPolicy';
@@ -26,6 +28,8 @@ interface DashboardScreenProps {
   onNavigate: (screen: ScreenType) => void;
   onSelectCounselor: (counselor: Counselor) => void;
   onFilterCounselorsStatus?: (status: 'all' | 'pass' | 'not-pass') => void;
+  onExport: () => void;
+  isExporting: boolean;
 }
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({
@@ -36,6 +40,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onNavigate,
   onSelectCounselor,
   onFilterCounselorsStatus,
+  onExport,
+  isExporting,
 }) => {
   const getTimeLabel = () => {
     switch (timeRange) {
@@ -96,16 +102,21 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
       {/* 5 Mandatory KPI Cards */}
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <h3 className="text-sm font-bold uppercase tracking-wider text-slate-600">
             Các chỉ số hiệu suất chính ({getTimeLabel()})
           </h3>
-          <span className="text-2xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded font-mono">
-            Cập nhật theo thời gian thực
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-2xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded font-mono">
+              Cập nhật theo thời gian thực
+            </span>
+            <button type="button" disabled={isExporting} onClick={onExport} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-60">
+              <Download className="h-3.5 w-3.5" /> {isExporting ? 'Đang xuất…' : 'Xuất tổng quan'}
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           {/* 1. Total Students */}
           <KpiCard
             id="kpi-card-total-students"
@@ -149,6 +160,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
               isPositive: true,
               label: 'mức sử dụng',
             }}
+          />
+
+          <KpiCard
+            id="kpi-card-total-tests"
+            title="Bài test hoạt động"
+            value={metrics.totalTests.toLocaleString('vi-VN')}
+            subtitle={`${metrics.totalTestAttempts.toLocaleString('vi-VN')} lượt làm trong kỳ`}
+            icon={FlaskConical}
+            variant="default"
           />
 
           {/* 4. Passed Counselors */}

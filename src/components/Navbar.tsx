@@ -34,6 +34,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   dataSource,
   isDataLoading,
 }) => {
+  const showTimeFilter = ![
+    'students',
+    'counselor-management',
+    'knowledge-graph',
+  ].includes(currentScreen);
   const initials = adminUser.name
     .split(' ')
     .filter(Boolean)
@@ -90,7 +95,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
             <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight flex items-center gap-1.5 mt-0.5">
               {currentScreen === 'dashboard' && 'Tổng quan phân tích trung tâm'}
+              {currentScreen === 'knowledge-graph' && 'Không gian Knowledge Graph'}
+              {currentScreen === 'counselor-management' && 'Quản lý hồ sơ và tài khoản tư vấn viên'}
               {currentScreen === 'counselors' && 'Hiệu suất tư vấn viên và kiểm định KPI'}
+              {currentScreen === 'students' && 'Quản lý hồ sơ Student'}
+              {currentScreen === 'student-trends' && 'Xu hướng tình trạng học viên'}
+              {currentScreen === 'feedback-analytics' && 'Phân tích phản hồi học viên'}
+              {currentScreen === 'audit-logs' && 'Nhật ký bảo mật và thay đổi'}
               {currentScreen === 'counselor-detail' && (
                 <>
                   <span className="text-slate-500 font-normal">Tư vấn viên:</span>
@@ -104,7 +115,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Right Side: Time Filter, Twin Status & Admin Avatar */}
         <div className="flex items-center gap-3">
           {/* Time Filter Tabs */}
-          <div
+          {showTimeFilter && <div
             id="time-range-filter-group"
             className="hidden md:flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200/80"
           >
@@ -151,7 +162,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               Toàn thời gian
             </button>
-          </div>
+          </div>}
 
           {/* Admin Profile & Logout */}
           <div className="flex items-center gap-2 pl-2 sm:border-l sm:border-slate-200">
@@ -177,7 +188,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Mobile Time Filter Bar */}
-      <div className="md:hidden px-4 py-2 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+      {showTimeFilter && <div className="md:hidden px-4 py-2 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
         <span className="text-2xs font-semibold text-slate-500">Khoảng thời gian:</span>
         <div className="flex items-center gap-1 bg-slate-200/80 p-0.5 rounded-lg">
           <button
@@ -211,7 +222,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             Toàn thời gian
           </button>
         </div>
-      </div>
+      </div>}
     </header>
   );
 };

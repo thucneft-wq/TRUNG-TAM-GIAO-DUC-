@@ -139,23 +139,23 @@ export const getKpiAuditNote = (kpi: KPIItem): string => {
 
   switch (kpi.id) {
     case 'caseload-compliance':
-      return `Dữ liệu tổng hợp ẩn danh từ ${sampleSize ?? kpi.actualNumeric} học sinh đang được phân công trong kỳ đã chọn.`;
+      return `Dữ liệu tổng hợp ẩn danh từ ${sampleSize ?? kpi.actualNumeric} học sinh đang được phân công và chưa kết thúc.`;
     case 'session-completion-rate':
       return numerator !== undefined && denominator !== undefined
         ? `${numerator} trên tổng số ${denominator} phiên tham vấn đã hoàn thành.`
-        : 'Tỷ lệ phiên tham vấn hoàn thành trong kỳ đã chọn.';
+        : 'Tỷ lệ phiên tham vấn hoàn thành trên toàn bộ dữ liệu.';
     case 'booking-cancellation-rate':
       return numerator !== undefined && denominator !== undefined
         ? `${numerator} trên tổng số ${denominator} lịch hẹn đã bị hủy.`
-        : 'Tỷ lệ lịch hẹn bị hủy trong kỳ đã chọn.';
+        : 'Tỷ lệ lịch hẹn bị hủy trên toàn bộ dữ liệu.';
     case 'test-completion-rate':
       return numerator !== undefined && denominator !== undefined
         ? `${numerator} trên tổng số ${denominator} bài đánh giá được phân công đã hoàn thành.`
-        : 'Tỷ lệ bài đánh giá hoàn thành trong kỳ đã chọn.';
+        : 'Tỷ lệ bài đánh giá hoàn thành trên toàn bộ dữ liệu.';
     case 'student-satisfaction':
       return sampleSize !== undefined
         ? `Điểm trung bình ẩn danh từ ${sampleSize} lượt phản hồi.`
-        : 'Điểm hài lòng trung bình ẩn danh của học sinh trong kỳ đã chọn.';
+        : 'Điểm hài lòng trung bình ẩn danh trên toàn bộ dữ liệu.';
     default:
       return kpi.notes || 'Chưa có ghi chú kiểm định.';
   }
