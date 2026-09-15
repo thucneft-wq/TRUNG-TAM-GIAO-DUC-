@@ -437,8 +437,8 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
           {[
             ['Ngày đăng ký', hrCompliance.registeredWorkdays],
             ['Giờ đăng ký', hrCompliance.registeredHours],
-            ['Giờ tối đa/ngày', hrCompliance.maxDailyHours],
-            ['Ngày vượt 8 giờ', hrCompliance.overLimitDays],
+            ['Thời lượng tối đa/ca', `${hrCompliance.maxDailyHours} giờ`],
+            ['Ca vượt 1 giờ', hrCompliance.overLimitDays],
             ['Tuần thiếu ngày nghỉ', hrCompliance.weeksWithoutRest],
           ].map(([label, value]) => (
             <div key={String(label)} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
