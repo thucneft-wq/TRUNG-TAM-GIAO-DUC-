@@ -14,6 +14,11 @@ import {
 
 interface DemoPeriodSeed {
   assignedStudents: number;
+  registeredWorkdays?: number;
+  registeredHours?: number;
+  maxDailyHours?: number;
+  overLimitDays?: number;
+  weeksWithoutRest?: number;
   completedBookings: number;
   pendingBookings: number;
   cancelledBookings: number;
@@ -44,9 +49,9 @@ const DEMO_COUNSELOR_SEEDS: DemoCounselorSeed[] = [
     email: 'counselor.a@example.edu',
     avatarColor: 'from-blue-600 to-indigo-600',
     periods: {
-      'this-month': { assignedStudents: 28, completedBookings: 92, pendingBookings: 8, cancelledBookings: 5, completedSessions: 88, totalSessions: 100, completedTests: 82, assignedTests: 96, satisfactionScore: 4.6, feedbackCount: 48 },
-      'last-month': { assignedStudents: 27, completedBookings: 86, pendingBookings: 7, cancelledBookings: 5, completedSessions: 84, totalSessions: 98, completedTests: 76, assignedTests: 90, satisfactionScore: 4.5, feedbackCount: 44 },
-      'all-time': { assignedStudents: 28, completedBookings: 520, pendingBookings: 32, cancelledBookings: 28, completedSessions: 502, totalSessions: 570, completedTests: 390, assignedTests: 455, satisfactionScore: 4.55, feedbackCount: 210 },
+      'this-month': { assignedStudents: 20, completedBookings: 92, pendingBookings: 8, cancelledBookings: 5, completedSessions: 88, totalSessions: 100, completedTests: 82, assignedTests: 96, satisfactionScore: 4.6, feedbackCount: 48 },
+      'last-month': { assignedStudents: 20, completedBookings: 86, pendingBookings: 7, cancelledBookings: 5, completedSessions: 84, totalSessions: 98, completedTests: 76, assignedTests: 90, satisfactionScore: 4.5, feedbackCount: 44 },
+      'all-time': { assignedStudents: 20, completedBookings: 520, pendingBookings: 32, cancelledBookings: 28, completedSessions: 502, totalSessions: 570, completedTests: 390, assignedTests: 455, satisfactionScore: 4.55, feedbackCount: 210 },
     },
   },
   {
@@ -58,7 +63,7 @@ const DEMO_COUNSELOR_SEEDS: DemoCounselorSeed[] = [
     avatarColor: 'from-teal-600 to-cyan-700',
     periods: {
       'this-month': { assignedStudents: 34, completedBookings: 104, pendingBookings: 10, cancelledBookings: 9, completedSessions: 92, totalSessions: 110, completedTests: 74, assignedTests: 88, satisfactionScore: 4.3, feedbackCount: 52 },
-      'last-month': { assignedStudents: 29, completedBookings: 98, pendingBookings: 8, cancelledBookings: 8, completedSessions: 88, totalSessions: 104, completedTests: 70, assignedTests: 84, satisfactionScore: 4.2, feedbackCount: 47 },
+      'last-month': { assignedStudents: 20, completedBookings: 98, pendingBookings: 8, cancelledBookings: 8, completedSessions: 88, totalSessions: 104, completedTests: 70, assignedTests: 84, satisfactionScore: 4.2, feedbackCount: 47 },
       'all-time': { assignedStudents: 34, completedBookings: 585, pendingBookings: 40, cancelledBookings: 42, completedSessions: 560, totalSessions: 650, completedTests: 350, assignedTests: 420, satisfactionScore: 4.25, feedbackCount: 226 },
     },
   },
@@ -168,6 +173,9 @@ const createKpi = (
     targetNumeric: definition.targetNumeric,
     unit: definition.unit,
     comparisonType: definition.comparisonType,
+    weight: definition.weight,
+    score: 0,
+    hardGuardrail: definition.hardGuardrail,
     isPassed: false,
     notes,
     evidence,
@@ -175,47 +183,61 @@ const createKpi = (
 };
 
 const createOfficialKpis = (period: DemoPeriodSeed): KPIItem[] => {
-  const totalBookings =
-    period.completedBookings + period.pendingBookings + period.cancelledBookings;
   const sessionCompletionRate = calculateRate(period.completedSessions, period.totalSessions);
-  const bookingCancellationRate = calculateRate(period.cancelledBookings, totalBookings);
   const testCompletionRate = calculateRate(period.completedTests, period.assignedTests);
+  const registeredHours = period.registeredHours ?? period.totalSessions;
+  const studentServiceHours = period.completedSessions;
+  const studentServiceRate = calculateRate(studentServiceHours, registeredHours);
+  const outcomeExperienceScore = roundToOneDecimal(period.satisfactionScore * 20);
 
   return [
     createKpi(
-      'caseload-compliance',
+      'weighted-caseload-capacity',
       period.assignedStudents,
-      `${period.assignedStudents} học sinh`,
-      'Dữ liệu tổng hợp ẩn danh về các học sinh đang được phân công trong kỳ đã chọn.',
-      { sampleSize: period.assignedStudents },
+      `${period.assignedStudents} điểm ca / FTE`,
+      'Dữ liệu demo mặc định mỗi ca là 1 điểm và mỗi tư vấn viên là 1,0 FTE.',
+      {
+        sampleSize: period.assignedStudents,
+        weightedCaseloadPoints: period.assignedStudents,
+        fteRatio: 1,
+      },
     ),
     createKpi(
-      'session-completion-rate',
+      'student-service-time',
+      studentServiceRate,
+      `${studentServiceRate.toFixed(1)}%`,
+      `${studentServiceHours} giờ phục vụ học sinh trên ${registeredHours} giờ dịch vụ đăng ký.`,
+      {
+        numerator: studentServiceHours,
+        denominator: registeredHours,
+        studentServiceHours,
+        registeredHours,
+      },
+    ),
+    createKpi(
+      'eligible-session-completion',
       sessionCompletionRate,
       `${sessionCompletionRate.toFixed(1)}%`,
-      `${period.completedSessions} trên tổng số ${period.totalSessions} phiên tham vấn đã hoàn thành.`,
+      `${period.completedSessions}/${period.totalSessions} phiên đến hạn đủ điều kiện đã hoàn thành.`,
       { numerator: period.completedSessions, denominator: period.totalSessions },
     ),
     createKpi(
-      'booking-cancellation-rate',
-      bookingCancellationRate,
-      `${bookingCancellationRate.toFixed(1)}%`,
-      `${period.cancelledBookings} trên tổng số ${totalBookings} lịch hẹn đã bị hủy.`,
-      { numerator: period.cancelledBookings, denominator: totalBookings },
-    ),
-    createKpi(
-      'test-completion-rate',
+      'assessment-follow-through',
       testCompletionRate,
       `${testCompletionRate.toFixed(1)}%`,
-      `${period.completedTests} trên tổng số ${period.assignedTests} bài đánh giá được phân công đã hoàn thành.`,
+      `${period.completedTests}/${period.assignedTests} đánh giá đủ điều kiện đã hoàn thành.`,
       { numerator: period.completedTests, denominator: period.assignedTests },
     ),
     createKpi(
-      'student-satisfaction',
-      period.satisfactionScore,
-      `${period.satisfactionScore.toFixed(2)} / 5.0`,
-      `Điểm trung bình ẩn danh từ ${period.feedbackCount} lượt phản hồi.`,
-      { sampleSize: period.feedbackCount },
+      'student-outcome-experience',
+      outcomeExperienceScore,
+      `${outcomeExperienceScore.toFixed(1)}%`,
+      `Điểm quy đổi từ ${period.feedbackCount} phản hồi ẩn danh.`,
+      {
+        sampleSize: period.feedbackCount,
+        minimumSampleSize: 5,
+        averageRating: period.satisfactionScore,
+      },
     ),
   ];
 };
@@ -233,7 +255,19 @@ const createPeriodMetrics = (period: DemoPeriodSeed): CounselorPeriodMetrics => 
   satisfactionScore: period.satisfactionScore,
   feedbackCount: period.feedbackCount,
   passedKpiCount: 0,
-  overallStatus: 'Not Pass',
+  overallScore: 0,
+  overallStatus: 'Insufficient Data',
+  hrCompliance: {
+    status: (period.overLimitDays ?? 0) === 0 && (period.weeksWithoutRest ?? 0) === 0
+      ? 'Compliant'
+      : 'Needs Review',
+    registeredWorkdays: period.registeredWorkdays ?? Math.ceil(period.totalSessions / 8),
+    registeredHours: period.registeredHours ?? period.totalSessions,
+    maxDailyHours: period.maxDailyHours ?? 8,
+    overLimitDays: period.overLimitDays ?? 0,
+    weeksWithoutRest: period.weeksWithoutRest ?? 0,
+    note: 'Dữ liệu HR demo được hiển thị riêng và không ảnh hưởng đến 4 KPI hiệu suất hoặc điều kiện an toàn tải ca.',
+  },
   kpis: createOfficialKpis(period),
 });
 
@@ -256,12 +290,15 @@ export const INITIAL_COUNSELORS: Counselor[] = DEMO_COUNSELOR_SEEDS.map((seed) =
     role: seed.title,
     specialization: seed.department,
     status: 'ACTIVE',
+    fteRatio: 1,
     avatarColor: seed.avatarColor,
     assignedStudents: current.assignedStudents,
     kpis: current.kpis ?? [],
     passedKpiCount: 0,
     failedKpiCount: 5,
-    overallStatus: 'Not Pass',
+    overallScore: 0,
+    overallStatus: 'Insufficient Data',
+    hrCompliance: current.hrCompliance,
     relationshipSummary: {
       assignedStudents: current.assignedStudents,
       completedBookings: current.completedBookings,

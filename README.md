@@ -47,6 +47,22 @@ In mock mode, Create, Update, and Deactivate are persisted in browser `localStor
 When `VITE_API_BASE_URL` is configured, these actions use the separate
 `Digital-Twin-Backend` application and send the bearer token returned by Login.
 
+The customer-facing release is read-only: direct Student and Counselor CRUD is locked
+in the UI. Student maintenance opens the separate THCS and THPT tabs configured by
+`VITE_GOOGLE_STUDENT_THCS_ENTRY_URL` and `VITE_GOOGLE_STUDENT_THPT_ENTRY_URL`.
+Counselor maintenance opens `VITE_GOOGLE_COUNSELOR_ENTRY_URL`. The legacy
+`VITE_GOOGLE_STUDENT_ENTRY_URL` remains a fallback for both student tabs.
+
+Student deletion is handled from the two Google Sheet tabs, not from the Web. Each tab
+has a `Trạng thái` dropdown: `Đang hoạt động` keeps the Student visible, while
+`Ngừng theo dõi` sends `INACTIVE` to PostgreSQL and hides the Student from the Web.
+Rows must not be deleted from the Sheet because physical row deletion does not provide
+enough data for the synchronization trigger to identify the Student.
+
+Counselor status uses three values from the Sheet. `Đang hoạt động` maps to `ACTIVE`;
+`Tạm nghỉ` maps to `ON_LEAVE` and remains visible on the management page with the
+`UNACTIVE` badge; `Ngừng hoạt động` maps to `INACTIVE` and is hidden from the Web.
+
 The counselor payload must resolve to the five official KPI IDs. A requested-period
 response may use `periodMetrics.kpis`; an all-period response may use
 `timeRangeMetrics.this-month.kpis`, `timeRangeMetrics.last-month.kpis`, and
@@ -64,18 +80,23 @@ suppressed in both the UI and CSV output.
 
 Set `VITE_CRUD_DEMO_MODE="true"` to hide dashboard, KPI, analytics, export, and audit
 navigation without deleting those features. Counselor accounts land on Student management;
-Admin can switch between Student and Counselor management. `VITE_GOOGLE_STUDENT_ENTRY_URL`
-and `VITE_GOOGLE_COUNSELOR_ENTRY_URL` control the external Sheet buttons. Both lists
-refresh at `VITE_STUDENT_SYNC_INTERVAL_MS` intervals after Apps Script pushes Sheet rows
-to the Backend webhooks.
+Admin can switch between Student and Counselor management. The three level-specific
+Google Sheet variables above control the external Sheet buttons.
+
+Student, Counselor and dashboard data automatically refresh at
+`VITE_STUDENT_SYNC_INTERVAL_MS` intervals after Apps Script pushes Sheet rows to the
+Backend webhooks. This near-real-time refresh is active in both the full Admin portal
+and Customer CRUD demo mode. It does not enable editing on the Web.
 
 ## KPI rule
 
-The frontend recalculates every KPI from `actualNumeric` and the canonical target and
-comparison in `kpiPolicy.ts`. Backend-provided `isPassed`, counts, and overall status are
-not trusted. Overall status is `Pass` only for the five unique official KPI IDs with all
-five passing. Failed, missing-data, duplicate, missing, unexpected, or extra KPI records
-are `Not Pass`.
+The frontend recalculates every KPI from `actualNumeric`, evidence and the canonical
+policy in `kpiPolicy.ts`. Backend-provided `isPassed`, counts and overall status are not
+trusted. Caseload is a mandatory safety guardrail and is not counted as performance.
+Overall status is `Pass` when at least three of four performance KPIs are evaluable and
+pass while caseload is between 1 and 20 weighted cases per FTE. Zero caseload or fewer
+than three evaluable performance KPIs produces `Insufficient Data`; caseload above 20
+produces `Not Pass`.
 
 ## Knowledge Graph integration placeholder
 
@@ -105,6 +126,17 @@ npm.cmd run build
 
 Backend and database assets are intentionally outside this Frontend directory.
 
+## Docker handoff
+
+The production-style Docker package is defined in `compose.yaml`. It builds the
+React app behind Nginx, proxies `/api` to the private Backend container, and
+starts PostgreSQL with a persistent volume. See
+[`docs/DOCKER_HANDOFF.md`](docs/DOCKER_HANDOFF.md) for the required sibling
+folder layout, secret configuration, Google Sheet HTTPS requirement, startup,
+verification, and customer handoff checklist.
+
 ## Account
-    admin@campus-counseling.edu
-    Admin@123
+
+The Web portal accepts only the Admin account configured by `ADMIN_EMAIL` and
+`ADMIN_PASSWORD_HASH` in the backend environment. Do not store the plain-text
+password in this repository.

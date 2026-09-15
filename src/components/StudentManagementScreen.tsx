@@ -24,7 +24,10 @@ interface StudentManagementScreenProps {
   onDeactivate: (id: string) => Promise<void>;
   crudDemoMode: boolean;
   webCrudEnabled: boolean;
-  googleEntryUrl: string;
+  googleEntryUrls: {
+    thcs: string;
+    thpt: string;
+  };
   onRefresh: () => void;
   isRefreshing: boolean;
 }
@@ -38,24 +41,45 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
   onDeactivate,
   crudDemoMode,
   webCrudEnabled,
-  googleEntryUrl,
+  googleEntryUrls,
   onRefresh,
   isRefreshing,
 }) => {
   const [query, setQuery] = useState('');
+  const [levelFilter, setLevelFilter] = useState<'THCS' | 'THPT' | 'UNKNOWN'>('THCS');
   const [editing, setEditing] = useState<Student | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const levelCounts = useMemo(() => ({
+    THCS: students.filter((student) => student.schoolLevel === 'THCS').length,
+    THPT: students.filter((student) => student.schoolLevel === 'THPT').length,
+    UNKNOWN: students.filter((student) => !student.schoolLevel).length,
+  }), [students]);
+
   const filtered = useMemo(() => {
     const keyword = query.trim().toLocaleLowerCase('vi-VN');
-    if (!keyword) return students;
-    return students.filter((student) =>
-      [student.name, student.email ?? '', student.phoneNumber]
-        .some((value) => value.toLocaleLowerCase('vi-VN').includes(keyword)),
-    );
-  }, [query, students]);
+    return students.filter((student) => {
+      const matchesLevel = levelFilter === 'UNKNOWN'
+        ? !student.schoolLevel
+        : student.schoolLevel === levelFilter;
+      if (!matchesLevel) return false;
+      if (!keyword) return true;
+      return [student.name, student.email ?? '', student.phoneNumber]
+        .some((value) => value.toLocaleLowerCase('vi-VN').includes(keyword));
+    });
+  }, [levelFilter, query, students]);
+
+  const openSheet = (level: 'thcs' | 'thpt') => {
+    const url = googleEntryUrls[level];
+    if (!url) {
+      setError(`Chưa cấu hình URL Google Sheet ${level.toUpperCase()} trong .env.local.`);
+      return;
+    }
+    setError(null);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   const handleDelete = async (student: Student) => {
     if (!window.confirm(`Vô hiệu hóa Student “${student.name}”? Dữ liệu lịch sử sẽ được giữ lại.`)) return;
@@ -83,7 +107,7 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                 {isAdmin
                   ? webCrudEnabled
                     ? 'Admin có thể quản lý toàn bộ Student trực tiếp trong hệ thống.'
-                    : 'Admin có thể xem toàn bộ Student; thay đổi dữ liệu được thực hiện qua Google Sheet/Form.'
+                    : 'Admin chỉ xem dữ liệu trên web; mọi thay đổi được thực hiện trên Google Sheet.'
                   : 'Bạn chỉ thấy Student đang được phân công cho tài khoản Counselor này.'}
               </p>
             </div>
@@ -97,24 +121,24 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
             >
               <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} /> Làm mới
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (webCrudEnabled) {
-                  setIsCreating(true);
-                  return;
-                }
-                if (!googleEntryUrl) {
-                  setError('Chưa cấu hình VITE_GOOGLE_STUDENT_ENTRY_URL trong .env.local.');
-                  return;
-                }
-                window.open(googleEntryUrl, '_blank', 'noopener,noreferrer');
-              }}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-blue-800 shadow-sm hover:bg-blue-50"
-            >
-              {!webCrudEnabled ? <ExternalLink className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-              {!webCrudEnabled ? 'Quản lý qua Google Sheet/Form' : 'Thêm Student'}
-            </button>
+            {webCrudEnabled ? (
+              <button
+                type="button"
+                onClick={() => setIsCreating(true)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-blue-800 shadow-sm hover:bg-blue-50"
+              >
+                <Plus className="h-4 w-4" /> Thêm Student
+              </button>
+            ) : (
+              <>
+                <button type="button" onClick={() => openSheet('thcs')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-blue-800 shadow-sm hover:bg-blue-50">
+                  <ExternalLink className="h-4 w-4" /> Mở Sheet THCS
+                </button>
+                <button type="button" onClick={() => openSheet('thpt')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-200 px-4 py-2.5 text-xs font-bold text-blue-950 shadow-sm hover:bg-cyan-100">
+                  <ExternalLink className="h-4 w-4" /> Mở Sheet THPT
+                </button>
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -123,22 +147,47 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
         <span>{webCrudEnabled
           ? 'Thao tác xóa là soft delete: hồ sơ chuyển sang INACTIVE, không xóa lịch sử liên quan.'
-          : 'Gói hiện tại khóa CRUD trực tiếp trên web. Thêm, sửa và ngừng hoạt động Student được thực hiện qua Google Sheet/Form.'}</span>
+          : 'Gói hiện tại khóa CRUD trực tiếp trên web. Dữ liệu học sinh được quản lý ở hai tab Google Sheet riêng: THCS và THPT.'}</span>
       </div>
 
       {!webCrudEnabled && crudDemoMode && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
-          Dữ liệu từ Google Sheet/Form được đồng bộ vào PostgreSQL và danh sách trên web tự làm mới định kỳ.
+          Dữ liệu cập nhật trên Google Sheet được hệ thống của đội dự án đồng bộ; danh sách trên web chỉ đọc và tự làm mới định kỳ.
         </div>
       )}
 
       {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">{error}</div>}
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-wrap gap-2 border-b border-slate-200 bg-slate-50/80 px-4 pt-4" role="tablist" aria-label="Lọc Student theo cấp học">
+          {(['THCS', 'THPT'] as const).map((level) => (
+            <button
+              key={level}
+              type="button"
+              role="tab"
+              aria-selected={levelFilter === level}
+              onClick={() => setLevelFilter(level)}
+              className={`rounded-t-xl border border-b-0 px-4 py-2.5 text-xs font-bold transition ${levelFilter === level ? 'border-blue-300 bg-white text-blue-800' : 'border-transparent text-slate-500 hover:text-blue-700'}`}
+            >
+              Học sinh {level} <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-2xs text-slate-600">{levelCounts[level]}</span>
+            </button>
+          ))}
+          {levelCounts.UNKNOWN > 0 && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={levelFilter === 'UNKNOWN'}
+              onClick={() => setLevelFilter('UNKNOWN')}
+              className={`rounded-t-xl border border-b-0 px-4 py-2.5 text-xs font-bold transition ${levelFilter === 'UNKNOWN' ? 'border-amber-300 bg-white text-amber-800' : 'border-transparent text-slate-500 hover:text-amber-700'}`}
+            >
+              Chưa phân loại <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-2xs text-amber-700">{levelCounts.UNKNOWN}</span>
+            </button>
+          )}
+        </div>
         <div className="flex flex-col gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="text-sm font-bold text-slate-900">Danh sách Student</h3>
-            <p className="mt-0.5 text-xs text-slate-500">{students.length} hồ sơ đang hoạt động</p>
+            <h3 className="text-sm font-bold text-slate-900">Danh sách {levelFilter === 'UNKNOWN' ? 'Student chưa phân loại' : `học sinh ${levelFilter}`}</h3>
+            <p className="mt-0.5 text-xs text-slate-500">{filtered.length} hồ sơ phù hợp · {students.length} hồ sơ đang hoạt động</p>
           </div>
           <label className="relative block w-full sm:w-80">
             <span className="sr-only">Tìm Student</span>
@@ -167,7 +216,7 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                   <th className="px-4 py-3">Liên hệ</th>
                   <th className="px-4 py-3">Ngày sinh</th>
                   <th className="px-4 py-3">Tư vấn viên</th>
-                  {webCrudEnabled && <th className="px-5 py-3 text-right">Thao tác</th>}
+                  <th className="px-5 py-3 text-right">Cập nhật</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -183,18 +232,33 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                     </td>
                     <td className="px-4 py-4">{student.dateOfBirth ?? '—'}</td>
                     <td className="px-4 py-4">{student.assignedCounselorName ?? 'Chưa phân công'}</td>
-                    {webCrudEnabled && (
-                      <td className="px-5 py-4">
-                        <div className="flex justify-end gap-2">
+                    <td className="px-5 py-4">
+                      <div className="flex justify-end gap-2">
+                        {webCrudEnabled ? (
+                          <>
                           <button type="button" onClick={() => setEditing(student)} className="rounded-lg border border-slate-300 p-2 text-slate-600 hover:bg-blue-50 hover:text-blue-700" aria-label={`Sửa ${student.name}`}>
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button type="button" disabled={busyId === student.id} onClick={() => void handleDelete(student)} className="rounded-lg border border-rose-200 p-2 text-rose-600 hover:bg-rose-50 disabled:opacity-50" aria-label={`Xóa ${student.name}`}>
                             <Trash2 className="h-4 w-4" />
                           </button>
-                        </div>
-                      </td>
-                    )}
+                          </>
+                        ) : (
+                          <div className="flex justify-end gap-1.5">
+                            {student.schoolLevel ? (
+                              <button type="button" onClick={() => openSheet(student.schoolLevel!.toLowerCase() as 'thcs' | 'thpt')} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-2 font-bold text-blue-700 hover:bg-blue-100" aria-label={`Mở Sheet ${student.schoolLevel} cập nhật ${student.name}`}>
+                                <ExternalLink className="h-3.5 w-3.5" /> Mở Sheet {student.schoolLevel}
+                              </button>
+                            ) : (
+                              <>
+                                <button type="button" onClick={() => openSheet('thcs')} className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-2 font-bold text-blue-700 hover:bg-blue-100">THCS</button>
+                                <button type="button" onClick={() => openSheet('thpt')} className="rounded-lg border border-cyan-200 bg-cyan-50 px-2.5 py-2 font-bold text-cyan-800 hover:bg-cyan-100">THPT</button>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -242,6 +306,7 @@ const StudentFormModal = ({
     email: student?.email ?? '',
     dateOfBirth: student?.dateOfBirth ?? '',
     status: student?.status ?? 'ACTIVE',
+    schoolLevel: student?.schoolLevel ?? null,
     counselorId: student?.assignedCounselorId ?? '',
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -281,6 +346,7 @@ const StudentFormModal = ({
           <Field label="Email"><input type="email" value={form.email ?? ''} onChange={(event) => setForm({ ...form, email: event.target.value })} className={inputClass} /></Field>
           <Field label="Ngày sinh"><input type="date" value={form.dateOfBirth ?? ''} onChange={(event) => setForm({ ...form, dateOfBirth: event.target.value })} className={inputClass} /></Field>
           <Field label="Giới tính"><select value={form.gender ?? ''} onChange={(event) => setForm({ ...form, gender: event.target.value })} className={inputClass}><option value="">Chưa xác định</option><option value="MALE">Nam</option><option value="FEMALE">Nữ</option><option value="OTHER">Khác</option></select></Field>
+          <Field label="Cấp học"><select value={form.schoolLevel ?? ''} onChange={(event) => setForm({ ...form, schoolLevel: (event.target.value || null) as CreateStudentInput['schoolLevel'] })} className={inputClass}><option value="">Chưa xác định</option><option value="THCS">THCS</option><option value="THPT">THPT</option></select></Field>
           {!student && isAdmin && <Field label="Phân công tư vấn viên"><select value={form.counselorId ?? ''} onChange={(event) => setForm({ ...form, counselorId: event.target.value })} className={inputClass}><option value="">Chưa phân công</option>{counselors.map((counselor) => <option key={counselor.id} value={counselor.id}>{counselor.name}</option>)}</select></Field>}
         </div>
         <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 p-4">

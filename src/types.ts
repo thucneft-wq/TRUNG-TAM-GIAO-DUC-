@@ -1,6 +1,7 @@
 export type TimeRange = 'this-month' | 'last-month' | 'all-time';
 
 export type CounselorStatus = 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE';
+export type OverallKpiStatus = 'Pass' | 'Not Pass' | 'Insufficient Data';
 
 export type ScreenType =
   | 'login'
@@ -15,16 +16,25 @@ export type ScreenType =
   | 'audit-logs';
 
 export type OfficialKpiId =
-  | 'caseload-compliance'
-  | 'session-completion-rate'
-  | 'booking-cancellation-rate'
-  | 'test-completion-rate'
-  | 'student-satisfaction';
+  | 'weighted-caseload-capacity'
+  | 'student-service-time'
+  | 'eligible-session-completion'
+  | 'assessment-follow-through'
+  | 'student-outcome-experience';
 
 export interface KpiEvidence {
   numerator?: number;
   denominator?: number;
   sampleSize?: number;
+  registeredHours?: number;
+  maxDailyHours?: number;
+  overLimitDays?: number;
+  weeksWithoutRest?: number;
+  weightedCaseloadPoints?: number;
+  fteRatio?: number;
+  studentServiceHours?: number;
+  minimumSampleSize?: number;
+  averageRating?: number;
 }
 
 export interface KPIItem {
@@ -37,6 +47,9 @@ export interface KPIItem {
   targetNumeric: number;
   unit: string;
   comparisonType: 'gte' | 'lte' | 'exact'; // greater-than-or-equal, less-than-or-equal, exact
+  weight: number;
+  score: number;
+  hardGuardrail?: boolean;
   isPassed: boolean;
   notes: string;
   evidence?: KpiEvidence;
@@ -53,6 +66,16 @@ export interface RelationshipSummary {
   satisfactionScore: number;
 }
 
+export interface HrComplianceSummary {
+  status: 'Compliant' | 'Needs Review' | 'No Data';
+  registeredWorkdays: number;
+  registeredHours: number;
+  maxDailyHours: number;
+  overLimitDays: number;
+  weeksWithoutRest: number;
+  note: string;
+}
+
 export interface CounselorPeriodMetrics {
   assignedStudents: number;
   completedBookings: number;
@@ -66,7 +89,9 @@ export interface CounselorPeriodMetrics {
   satisfactionScore: number;
   feedbackCount: number;
   passedKpiCount: number;
-  overallStatus: 'Pass' | 'Not Pass';
+  overallScore: number;
+  overallStatus: OverallKpiStatus;
+  hrCompliance: HrComplianceSummary;
   // The API should provide a period-specific set when KPI results vary by period.
   // When omitted, the latest counselor-level KPI set is used.
   kpis?: KPIItem[];
@@ -86,12 +111,15 @@ export interface Counselor {
   role?: string | null;
   specialization?: string | null;
   status?: CounselorStatus;
+  fteRatio: number;
   avatarColor: string;
   assignedStudents: number;
   kpis: KPIItem[]; // exactly 5 KPIs
-  passedKpiCount: number; // calculated: count of isPassed == true
-  failedKpiCount: number; // includes an incomplete/invalid KPI-set policy failure
-  overallStatus: 'Pass' | 'Not Pass'; // 'Pass' ONLY for exactly 5 unique, passing KPIs
+  passedKpiCount: number; // passed performance KPIs; the workload guardrail is tracked separately
+  failedKpiCount: number; // evaluable performance KPIs that miss their target
+  overallScore: number;
+  overallStatus: OverallKpiStatus; // 3/4 performance KPIs plus the mandatory workload guardrail
+  hrCompliance: HrComplianceSummary;
   relationshipSummary: RelationshipSummary;
   timeRangeMetrics: Record<TimeRange, CounselorPeriodMetrics>;
 }
@@ -106,11 +134,13 @@ export interface CreateCounselorInput {
   role?: string | null;
   specialization?: string | null;
   status: CounselorStatus;
+  fteRatio?: number;
 }
 
 export type UpdateCounselorInput = Partial<CreateCounselorInput>;
 
 export type StudentStatus = 'ACTIVE' | 'INACTIVE';
+export type SchoolLevel = 'THCS' | 'THPT';
 
 export interface Student {
   id: string;
@@ -122,6 +152,7 @@ export interface Student {
   email: string | null;
   dateOfBirth: string | null;
   status: StudentStatus;
+  schoolLevel: SchoolLevel | null;
   schoolId: string | null;
   addressId: string | null;
   assignedCounselorId: string | null;
@@ -138,6 +169,7 @@ export interface CreateStudentInput {
   email?: string | null;
   dateOfBirth?: string | null;
   status: StudentStatus;
+  schoolLevel?: SchoolLevel | null;
   counselorId?: string | null;
 }
 

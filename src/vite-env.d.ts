@@ -15,6 +15,8 @@ interface ImportMetaEnv {
   readonly VITE_CRUD_DEMO_MODE?: string;
   readonly VITE_GOOGLE_STUDENT_FORM_URL?: string;
   readonly VITE_GOOGLE_STUDENT_ENTRY_URL?: string;
+  readonly VITE_GOOGLE_STUDENT_THCS_ENTRY_URL?: string;
+  readonly VITE_GOOGLE_STUDENT_THPT_ENTRY_URL?: string;
   readonly VITE_GOOGLE_COUNSELOR_ENTRY_URL?: string;
   readonly VITE_STUDENT_SYNC_INTERVAL_MS?: string;
   readonly VITE_API_TIMEOUT_MS?: string;

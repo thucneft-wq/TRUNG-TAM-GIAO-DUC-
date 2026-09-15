@@ -30,7 +30,8 @@ import {
   loadStudents,
   isCrudDemoMode,
   isWebCrudEnabled,
-  googleStudentEntryUrl,
+  googleStudentThcsEntryUrl,
+  googleStudentThptEntryUrl,
   googleCounselorEntryUrl,
   studentSyncIntervalMs,
   restoreSession,
@@ -79,8 +80,19 @@ const EMPTY_FEEDBACK: FeedbackAnalytics = {
   timeline: [],
 };
 
+const DEFAULT_ADMIN_SESSION: AuthSession = {
+  user: {
+    id: 'demo-admin',
+    name: 'Người quản trị',
+    email: 'admin@campus-counseling.edu',
+    role: 'Quản trị viên',
+    roleCode: 'admin',
+  },
+  source: 'mock',
+};
+
 export default function App() {
-  const [session, setSession] = useState<AuthSession | null>(() => restoreSession());
+  const [session, setSession] = useState<AuthSession | null>(() => restoreSession() ?? DEFAULT_ADMIN_SESSION);
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('dashboard');
   const [timeRange, setTimeRange] = useState<TimeRange>('this-month');
   const [counselors, setCounselors] = useState<Counselor[]>([]);
@@ -230,7 +242,7 @@ export default function App() {
   }, [session, refreshKey]);
 
   useEffect(() => {
-    if (!session || !isCrudDemoMode) return;
+    if (!session) return;
     const intervalId = window.setInterval(() => {
       loadStudents(session).then(setStudents).catch(() => {
         // Keep the last successful list; the next interval retries automatically.
@@ -238,7 +250,9 @@ export default function App() {
       if (session.user.roleCode === 'admin') {
         loadAdminData(session, timeRange).then((result) => {
           setCounselors(result.counselors);
+          setRemoteDashboard(result.dashboard ?? null);
           setDataSource(result.source);
+          setDataWarning(result.warning ?? null);
         }).catch(() => {
           // Keep the last successful Counselor list and retry on the next interval.
         });
@@ -285,12 +299,16 @@ export default function App() {
   }, [isSidebarOpen]);
 
   const handleLogin = (authenticatedSession: AuthSession) => {
+    if (authenticatedSession.user.roleCode !== 'admin') {
+      clearSession();
+      setSession(null);
+      setDataError('Tài khoản này không có quyền truy cập cổng quản trị.');
+      return;
+    }
     saveSession(authenticatedSession);
     setSession(authenticatedSession);
     setDataSource(authenticatedSession.source);
-    setCurrentScreen(
-      authenticatedSession.user.roleCode === 'counselor' ? 'students' : 'dashboard',
-    );
+    setCurrentScreen('dashboard');
     setIsDataLoading(true);
   };
 
@@ -513,7 +531,10 @@ export default function App() {
                     onDeactivate={handleDeactivateStudent}
                     crudDemoMode={isCrudDemoMode}
                     webCrudEnabled={isWebCrudEnabled}
-                    googleEntryUrl={googleStudentEntryUrl}
+                    googleEntryUrls={{
+                      thcs: googleStudentThcsEntryUrl,
+                      thpt: googleStudentThptEntryUrl,
+                    }}
                     onRefresh={() => setRefreshKey((key) => key + 1)}
                     isRefreshing={isStudentsLoading}
                   />

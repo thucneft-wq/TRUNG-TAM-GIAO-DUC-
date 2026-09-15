@@ -30,6 +30,9 @@ import {
   getKpiActualValueLabel,
   getKpiAuditNote,
   getPerformanceTargetAlignmentLabel,
+  isKpiEvaluable,
+  PERFORMANCE_KPI_COUNT,
+  REQUIRED_PASSED_KPIS,
   REQUIRED_KPI_COUNT,
 } from '../domain/kpiPolicy';
 import { CounselorFormModal } from './CounselorFormModal';
@@ -70,6 +73,8 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
   const passedKpis = evaluation.passedKpiCount;
   const failedKpis = evaluation.failedKpiCount;
   const isOverallPass = evaluation.overallStatus === 'Pass';
+  const isInsufficientData = evaluation.overallStatus === 'Insufficient Data';
+  const hrCompliance = timeMetrics.hrCompliance ?? counselor.hrCompliance;
 
   // Next / Previous counselor switcher
   const currentIndex = allCounselors.findIndex((c) => c.id === counselor.id);
@@ -206,7 +211,15 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-xs"
               >
                 <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                <span>Đạt (đủ 5/5 KPI)</span>
+                <span>Đạt ({passedKpis}/{PERFORMANCE_KPI_COUNT} KPI hiệu suất)</span>
+              </div>
+            ) : isInsufficientData ? (
+              <div
+                id="counselor-detail-overall-status-insufficient"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-xs"
+              >
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+                <span>Chưa đủ dữ liệu ({evaluation.evaluableKpiCount}/{PERFORMANCE_KPI_COUNT} KPI hiệu suất)</span>
               </div>
             ) : (
               <div
@@ -214,14 +227,16 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-rose-100 text-rose-900 border border-rose-300 shadow-xs"
               >
                 <XCircle className="w-5 h-5 text-rose-600" />
-                <span>Chưa đạt ({passedKpis}/5 KPI đạt)</span>
+                <span>Cần cải thiện ({passedKpis}/{PERFORMANCE_KPI_COUNT} KPI hiệu suất đạt)</span>
               </div>
             )}
 
             <div className="text-2xs text-slate-500 mt-2">
               {isOverallPass
-                ? 'Đã đáp ứng đủ năm ngưỡng vận hành và chuyên môn.'
-                : 'KPI chưa đạt, bị thiếu, trùng lặp hoặc không hợp lệ đều cần được rà soát.'}
+                ? 'Đạt ít nhất 3/4 KPI hiệu suất và khối lượng ca đang ở mức an toàn.'
+                : isInsufficientData
+                  ? 'Cần tối thiểu 3 KPI hiệu suất có đủ bằng chứng và phải có ca được phân công.'
+                  : 'Cần đạt ít nhất 3/4 KPI hiệu suất và không phụ trách quá nhiều ca.'}
             </div>
           </div>
         </div>
@@ -232,13 +247,13 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
-              Kết quả 5 KPI tiêu chuẩn
+              Kết quả 4 KPI hiệu suất và 1 điều kiện an toàn
               <span className="text-2xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                Điều kiện đạt: 5/5 (100%)
+                Điều kiện đạt: ít nhất {REQUIRED_PASSED_KPIS}/{PERFORMANCE_KPI_COUNT} KPI và không quá tải ca
               </span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Đánh giá dữ liệu tổng hợp trên các khía cạnh vận hành và chuyên môn
+              Khối lượng ca là điều kiện an toàn, không được cộng thành tích hiệu suất; chấm công HR được tách riêng
             </p>
           </div>
 
@@ -247,8 +262,13 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
               <CheckCircle2 className="w-3.5 h-3.5" /> Đạt: {passedKpis}
             </span>
             <span className="inline-flex items-center gap-1 text-rose-700 font-bold">
-              <XCircle className="w-3.5 h-3.5" /> Chưa đạt: {failedKpis}
+              <XCircle className="w-3.5 h-3.5" /> Cần cải thiện: {failedKpis}
             </span>
+            {evaluation.insufficientDataKpiCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-amber-700 font-bold">
+                <AlertTriangle className="w-3.5 h-3.5" /> Chưa đủ dữ liệu: {evaluation.insufficientDataKpiCount}
+              </span>
+            )}
           </div>
         </div>
 
@@ -258,22 +278,23 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
             <div className="md:col-span-2 lg:col-span-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-900">
               <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
               <p>
-                <strong>Bộ KPI không hợp lệ:</strong> đã nhận {periodKpis.length} bản ghi; hệ thống yêu cầu đúng {REQUIRED_KPI_COUNT} mã KPI chính thức và không trùng lặp. Kết quả tổng thể tự động là <strong>Chưa đạt</strong>.
-                {evaluation.missingKpiIds.length > 0 && ` Thiếu: ${evaluation.missingKpiIds.join(', ')}.`}
-                {evaluation.unexpectedKpiIds.length > 0 && ` Không hợp lệ: ${evaluation.unexpectedKpiIds.join(', ')}.`}
+                <strong>Chưa đủ dữ liệu để kết luận:</strong> hệ thống cần đủ {REQUIRED_KPI_COUNT} tiêu chí, nhưng hiện nhận được {periodKpis.length}. Kết quả tạm thời là <strong>Cần kiểm tra</strong>.
               </p>
             </div>
           )}
 
           {periodKpis.map((kpi, idx) => {
             const isPass = kpi.isPassed;
+            const hasEnoughData = isKpiEvaluable(kpi);
 
             return (
               <div
                 key={kpi.id}
                 id={`kpi-card-${kpi.id}`}
                 className={`p-5 rounded-xl border shadow-xs transition-all bg-white flex flex-col justify-between ${
-                  isPass
+                  !hasEnoughData
+                    ? 'border-amber-200 hover:border-amber-300'
+                    : isPass
                     ? 'border-emerald-200 hover:border-emerald-300'
                     : 'border-rose-200 hover:border-rose-300'
                 }`}
@@ -282,17 +303,22 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
                   {/* Category & Status Badge */}
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-2xs font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                      KPI #{idx + 1} • {kpi.category}
+                      Tiêu chí #{idx + 1} • {kpi.category}
                     </span>
-                    {isPass ? (
+                    {!hasEnoughData ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        <AlertTriangle className="w-3 h-3 text-amber-600" />
+                        {getPerformanceTargetAlignmentLabel(kpi)}
+                      </span>
+                    ) : isPass ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                         <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        Đạt
+                        {getPerformanceTargetAlignmentLabel(kpi)}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-rose-100 text-rose-800 border border-rose-200">
                         <XCircle className="w-3 h-3 text-rose-600" />
-                        Chưa đạt
+                        {getPerformanceTargetAlignmentLabel(kpi)}
                       </span>
                     )}
                   </div>
@@ -308,7 +334,7 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
                       <div className="text-2xs font-medium text-slate-500 uppercase">Giá trị thực tế</div>
                       <div
                         className={`text-base font-bold mt-0.5 ${
-                          isPass ? 'text-emerald-800' : 'text-rose-800'
+                          !hasEnoughData ? 'text-amber-800' : isPass ? 'text-emerald-800' : 'text-rose-800'
                         }`}
                       >
                         {getKpiActualValueLabel(kpi)}
@@ -322,27 +348,20 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
                     </div>
                   </div>
 
-                  {/* Audit Note */}
-                  <p className="text-2xs text-slate-500 italic leading-relaxed">
-                    “{getKpiAuditNote(kpi)}”
-                  </p>
+                  {/* Plain-language calculation note */}
+                  <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-2.5 text-2xs leading-relaxed text-slate-600">
+                    <strong className="text-slate-700">Cách tính: </strong>
+                    {getKpiAuditNote(kpi)}
+                  </div>
                 </div>
 
-                {/* Progress bar visual */}
+                {/* Plain-language status; no weighted score is shown to users. */}
                 <div className="mt-4 pt-3 border-t border-slate-100">
-                  <div className="flex justify-between text-2xs text-slate-400 font-medium mb-1">
-                    <span>Mức độ đáp ứng mục tiêu</span>
-                    <span>{getPerformanceTargetAlignmentLabel(kpi)}</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      style={{
-                        width: isPass ? '100%' : '65%',
-                      }}
-                      className={`h-full ${
-                        isPass ? 'bg-emerald-500' : 'bg-rose-500'
-                      }`}
-                    />
+                  <div className="flex justify-between text-2xs text-slate-500 font-medium">
+                    <span>Kết luận</span>
+                    <span className={!hasEnoughData ? 'text-amber-700' : isPass ? 'text-emerald-700' : 'text-rose-700'}>
+                      {getPerformanceTargetAlignmentLabel(kpi)}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -357,17 +376,25 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
                 Quy định tiêu chuẩn của đơn vị
               </div>
               <p className="text-xs text-slate-700 leading-relaxed">
-                Việc đánh giá tư vấn viên yêu cầu tuân thủ tuyệt đối 100%. Trạng thái tổng thể <strong>Đạt</strong> chỉ được ghi nhận khi cả 5 KPI đều đạt.
+                Trạng thái tổng thể <strong>Đạt</strong> khi có ít nhất {REQUIRED_PASSED_KPIS}/{PERFORMANCE_KPI_COUNT} KPI hiệu suất có đủ dữ liệu và đạt, đồng thời có ca được phân công nhưng không vượt mức an toàn. Thiếu dữ liệu không bị tính là hiệu suất kém.
               </p>
               <div className="mt-3 p-2.5 rounded-lg bg-white/80 border border-blue-100 text-2xs text-slate-600 space-y-1">
                 <div className="flex items-center justify-between">
-                  <span>Điểm đạt hiện tại:</span>
-                  <span className="font-bold text-slate-800">{passedKpis} / 5</span>
+                  <span>KPI hiệu suất đạt:</span>
+                  <span className="font-bold text-slate-800">{passedKpis} / {PERFORMANCE_KPI_COUNT}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Tiêu chí chưa đủ dữ liệu:</span>
+                  <span className="font-bold text-amber-700">{evaluation.insufficientDataKpiCount}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Kết quả kiểm định:</span>
-                  <span className={`font-bold ${isOverallPass ? 'text-emerald-700' : 'text-rose-700'}`}>
-                    {isOverallPass ? 'ĐẠT (Tuân thủ)' : 'CHƯA ĐẠT (Cần khắc phục)'}
+                  <span className={`font-bold ${isOverallPass ? 'text-emerald-700' : isInsufficientData ? 'text-amber-700' : 'text-rose-700'}`}>
+                    {isOverallPass
+                      ? 'ĐẠT (Tuân thủ)'
+                      : isInsufficientData
+                        ? 'CHƯA ĐỦ DỮ LIỆU'
+                        : 'CHƯA ĐẠT (Cần khắc phục)'}
                   </span>
                 </div>
               </div>
@@ -379,6 +406,48 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* HR attendance is intentionally separate from professional performance. */}
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <Clock className="w-4 h-4 text-blue-700" /> Tuân thủ chấm công HR
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Theo dõi nhân sự riêng, không ảnh hưởng đến 4 KPI hiệu suất và điều kiện an toàn tải ca
+            </p>
+          </div>
+          <span className={`rounded-full border px-3 py-1 text-xs font-bold ${
+            hrCompliance.status === 'Compliant'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : hrCompliance.status === 'Needs Review'
+                ? 'border-amber-200 bg-amber-50 text-amber-800'
+                : 'border-slate-200 bg-slate-50 text-slate-600'
+          }`}>
+            {hrCompliance.status === 'Compliant'
+              ? 'Không có cảnh báo'
+              : hrCompliance.status === 'Needs Review'
+                ? 'Cần rà soát'
+                : 'Chưa có dữ liệu'}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
+          {[
+            ['Ngày đăng ký', hrCompliance.registeredWorkdays],
+            ['Giờ đăng ký', hrCompliance.registeredHours],
+            ['Giờ tối đa/ngày', hrCompliance.maxDailyHours],
+            ['Ngày vượt 8 giờ', hrCompliance.overLimitDays],
+            ['Tuần thiếu ngày nghỉ', hrCompliance.weeksWithoutRest],
+          ].map(([label, value]) => (
+            <div key={String(label)} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+              <div className="text-2xs text-slate-500">{label}</div>
+              <div className="mt-1 text-lg font-bold text-slate-900">{value}</div>
+            </div>
+          ))}
+        </div>
+        <p className="text-2xs leading-relaxed text-slate-500">{hrCompliance.note}</p>
       </div>
 
       {/* Section 2: Relationship Summary */}

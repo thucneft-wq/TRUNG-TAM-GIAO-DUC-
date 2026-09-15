@@ -1,0 +1,77 @@
+name: psychological-counseling-center
+
+services:
+  database:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-psycholo_final}
+      POSTGRES_USER: ${POSTGRES_USER:-psycholo_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - ../new_database_psychological.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+      - ../TRUNG-TAM-GIAO-DUC-backend/database/migrations/001_professional_kpi_inputs.sql:/docker-entrypoint-initdb.d/002-professional-kpi.sql:ro
+      - ../TRUNG-TAM-GIAO-DUC-backend/database/migrations/002_student_school_level.sql:/docker-entrypoint-initdb.d/003-student-school-level.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - app_internal
+
+  backend:
+    build:
+      context: ../TRUNG-TAM-GIAO-DUC-backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env.docker}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.docker}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?Set ADMIN_EMAIL in .env.docker}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?Set ADMIN_PASSWORD_HASH in .env.docker}
+      GOOGLE_SHEETS_SYNC_SECRET: ${GOOGLE_SHEETS_SYNC_SECRET:?Set GOOGLE_SHEETS_SYNC_SECRET in .env.docker}
+      MIN_ANALYTICS_SAMPLE_SIZE: ${MIN_ANALYTICS_SAMPLE_SIZE:-5}
+      WEB_CRUD_ENABLED: "false"
+      CORS_ORIGINS: ${PUBLIC_APP_ORIGIN:-http://localhost:8080}
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - app_internal
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_GOOGLE_STUDENT_ENTRY_URL: ${GOOGLE_STUDENT_ENTRY_URL:-}
+        VITE_GOOGLE_STUDENT_THCS_ENTRY_URL: ${GOOGLE_STUDENT_THCS_ENTRY_URL:-}
+        VITE_GOOGLE_STUDENT_THPT_ENTRY_URL: ${GOOGLE_STUDENT_THPT_ENTRY_URL:-}
+        VITE_GOOGLE_COUNSELOR_ENTRY_URL: ${GOOGLE_COUNSELOR_ENTRY_URL:-}
+        VITE_STUDENT_SYNC_INTERVAL_MS: ${STUDENT_SYNC_INTERVAL_MS:-10000}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    networks:
+      - app_internal
+
+volumes:
+  postgres_data:
+
+networks:
+  app_internal:
+    driver: bridge

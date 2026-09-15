@@ -339,11 +339,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ? 'Dữ liệu quản trị, hồ sơ tư vấn viên và đánh giá 5 KPI theo kỳ báo cáo đã chọn.'
                 : isAdmin
                 ? 'Dữ liệu tư vấn viên, lịch hẹn và 5 KPI đã được chuẩn hóa theo kỳ báo cáo đã chọn.'
-                : 'Tài khoản Counselor chỉ truy cập các Student đang được phân công.'}
+                : 'Phiên đăng nhập không hợp lệ cho cổng quản trị.'}
             </p>
             <div className="pt-2 border-t border-slate-700/60 flex items-center justify-between text-2xs text-slate-400 font-mono">
               <span>Nguồn: {dataSource === 'api' ? 'API hệ thống' : 'Demo cục bộ'}</span>
-              <span>Quy tắc: 5/5</span>
+              <span>Quy tắc: 3/4 KPI + an toàn</span>
             </div>
           </div>
 

@@ -65,13 +65,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleFillDemo = (accountIndex: number) => {
-    const account = DEMO_ACCOUNTS[accountIndex];
-    setEmail(account.email);
-    setPassword('');
-    setErrorMsg(null);
-  };
-
   return (
     <div
       id="login-screen-wrapper"
@@ -92,13 +85,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         <div className="mt-4 text-center">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-teal-950/80 text-teal-400 border border-teal-800/80 mb-2">
             <ShieldCheck className="w-3.5 h-3.5" />
-            Cổng thông tin dành cho người được ủy quyền
+            Cổng quản trị nội bộ
           </div>
           <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
             Trung tâm Tham vấn Tâm lý Học đường
           </h2>
           <p className="mt-1 text-xs text-slate-400 font-medium">
-            Cổng quản trị dành cho Admin và Counselor
+            Một tài khoản Admin duy nhất cho phiên bản MVP
           </p>
         </div>
 
@@ -202,24 +195,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
               </button>
             </div>
 
-            {/* Demo Quick Fill Shortcuts */}
+            {/* Demo account notice */}
             {!isRemoteApiConfigured && (
               <div className="pt-2 border-t border-slate-700/60">
-                <div className="text-2xs font-semibold text-slate-400 uppercase tracking-wider mb-2 text-center">
-                  Tài khoản demo cục bộ
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {DEMO_ACCOUNTS.slice(1).map((account, index) => (
-                    <button
-                      key={account.email}
-                      type="button"
-                      onClick={() => handleFillDemo(index + 1)}
-                      className="py-1.5 px-2 bg-slate-900 hover:bg-slate-700/60 border border-slate-700 rounded-lg text-2xs text-slate-300 transition-colors text-center"
-                    >
-                      {account.label}
-                    </button>
-                  ))}
-                </div>
+                <p className="text-2xs text-slate-400 text-center">
+                  Chế độ demo chỉ chấp nhận tài khoản Admin đã điền sẵn phía trên.
+                </p>
               </div>
             )}
           </form>

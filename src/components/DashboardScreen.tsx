@@ -14,9 +14,10 @@ import {
   Filter,
   FlaskConical,
   Download,
+  AlertTriangle,
 } from 'lucide-react';
 import { Counselor, DashboardMetrics, TimeRange, ScreenType } from '../types';
-import { getCounselorEvaluation } from '../domain/kpiPolicy';
+import { getCounselorEvaluation, PERFORMANCE_KPI_COUNT } from '../domain/kpiPolicy';
 import { KpiCard } from './KpiCard';
 import { CounselorPassChart, BookingsChart } from './Charts';
 
@@ -176,7 +177,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             id="kpi-card-passed-counselors"
             title="Tư vấn viên đạt"
             value={metrics.passedCounselors}
-            subtitle="Đạt đủ 5 KPI (100%)"
+            subtitle="Đạt ít nhất 3/4 KPI và không quá tải"
             icon={CheckCircle2}
             variant="success"
             trend={{
@@ -194,9 +195,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           {/* 5. Not Passed Counselors */}
           <KpiCard
             id="kpi-card-not-passed-counselors"
-            title="Tư vấn viên chưa đạt"
+            title="Tư vấn viên cần rà soát"
             value={metrics.notPassedCounselors}
-            subtitle="Chưa tuân thủ đủ 5/5"
+            subtitle="Gồm chưa đạt hoặc chưa đủ dữ liệu"
             icon={XCircle}
             variant="danger"
             trend={{
@@ -254,6 +255,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           {counselors.map((c) => {
             const evaluation = getCounselorEvaluation(c, timeRange);
             const isPass = evaluation.overallStatus === 'Pass';
+            const isInsufficientData = evaluation.overallStatus === 'Insufficient Data';
             return (
               <button
                 key={c.id}
@@ -274,15 +276,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold ${
                         isPass
                           ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                          : 'bg-rose-100 text-rose-800 border border-rose-200'
+                          : isInsufficientData
+                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                            : 'bg-rose-100 text-rose-800 border border-rose-200'
                       }`}
                     >
                       {isPass ? (
                         <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      ) : isInsufficientData ? (
+                        <AlertTriangle className="w-3 h-3 text-amber-600" />
                       ) : (
                         <XCircle className="w-3 h-3 text-rose-600" />
                       )}
-                      {isPass ? 'Đạt' : 'Chưa đạt'}
+                      {isPass ? 'Đạt' : isInsufficientData ? 'Chưa đủ dữ liệu' : 'Chưa đạt'}
                     </span>
                   </div>
 
@@ -296,7 +302,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
                 <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-2xs">
                   <span className="text-slate-500 font-medium">
-                    KPI: <strong className="text-slate-800">{evaluation.passedKpiCount}/5 đạt</strong>
+                    KPI hiệu suất: <strong className="text-slate-800">{evaluation.passedKpiCount}/{PERFORMANCE_KPI_COUNT} đạt</strong>
                   </span>
                   <span className="text-blue-600 font-semibold group-hover:underline flex items-center gap-0.5">
                     Chi tiết <ChevronRight className="w-3 h-3" />

@@ -32,7 +32,7 @@ export const CounselorPassChart: React.FC<CounselorPassChartProps> = ({
           <h4 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
             Phân bố kết quả KPI tư vấn viên
             <span className="text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-              Yêu cầu đủ 5 KPI
+              Quy tắc 3/4 KPI + an toàn tải ca
             </span>
           </h4>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -111,8 +111,8 @@ export const CounselorPassChart: React.FC<CounselorPassChartProps> = ({
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <div>
-                  <div className="text-xs font-bold text-emerald-950">Đạt (5/5 KPI)</div>
-                  <div className="text-2xs text-emerald-700">Đáp ứng đầy đủ tiêu chuẩn</div>
+                  <div className="text-xs font-bold text-emerald-950">Đạt</div>
+                  <div className="text-2xs text-emerald-700">Ít nhất 3/4 KPI và tải ca an toàn</div>
                 </div>
               </div>
               <span className="text-base font-bold text-emerald-800">{passed}</span>
@@ -122,8 +122,8 @@ export const CounselorPassChart: React.FC<CounselorPassChartProps> = ({
               <div className="flex items-center gap-2">
                 <XCircle className="w-4 h-4 text-rose-600 shrink-0" />
                 <div>
-                  <div className="text-xs font-bold text-rose-950">Chưa đạt</div>
-                  <div className="text-2xs text-rose-700">Chưa tuân thủ đủ 5/5</div>
+                  <div className="text-xs font-bold text-rose-950">Cần rà soát</div>
+                  <div className="text-2xs text-rose-700">Chưa đạt hoặc chưa đủ dữ liệu</div>
                 </div>
               </div>
               <span className="text-base font-bold text-rose-800">{notPassed}</span>
@@ -162,7 +162,7 @@ export const CounselorPassChart: React.FC<CounselorPassChartProps> = ({
       <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-2xs text-slate-500">
         <span className="flex items-center gap-1">
           <Info className="w-3 h-3 text-slate-400" />
-          Áp dụng ngưỡng đạt KPI tuyệt đối 100%
+          Thiếu dữ liệu được tách khỏi kết luận hiệu suất
         </span>
         <span className="font-mono text-slate-600">Nhân sự hoạt động: {total}</span>
       </div>

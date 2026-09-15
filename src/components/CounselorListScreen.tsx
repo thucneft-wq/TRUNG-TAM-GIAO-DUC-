@@ -14,7 +14,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { Counselor, CreateCounselorInput, TimeRange } from '../types';
-import { getCounselorEvaluation, REQUIRED_KPI_COUNT } from '../domain/kpiPolicy';
+import { getCounselorEvaluation, PERFORMANCE_KPI_COUNT } from '../domain/kpiPolicy';
 import { CounselorFormModal } from './CounselorFormModal';
 
 interface CounselorListScreenProps {
@@ -52,7 +52,7 @@ export const CounselorListScreen: React.FC<CounselorListScreenProps> = ({
         ? true
         : statusFilter === 'pass'
         ? evaluation.overallStatus === 'Pass'
-        : evaluation.overallStatus === 'Not Pass';
+        : evaluation.overallStatus !== 'Pass';
 
     const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
@@ -102,7 +102,13 @@ export const CounselorListScreen: React.FC<CounselorListScreenProps> = ({
   const passCount = counselors.filter(
     (c) => getCounselorEvaluation(c, timeRange).overallStatus === 'Pass',
   ).length;
-  const notPassCount = counselors.length - passCount;
+  const notPassCount = counselors.filter(
+    (c) => getCounselorEvaluation(c, timeRange).overallStatus === 'Not Pass',
+  ).length;
+  const insufficientCount = counselors.filter(
+    (c) => getCounselorEvaluation(c, timeRange).overallStatus === 'Insufficient Data',
+  ).length;
+  const reviewCount = notPassCount + insufficientCount;
 
   return (
     <div id="screen-counselor-performance" className="space-y-6">
@@ -114,7 +120,7 @@ export const CounselorListScreen: React.FC<CounselorListScreenProps> = ({
               Hiệu suất tư vấn viên và kiểm định KPI
             </h2>
             <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
-              Đánh giá chuyên môn tiêu chuẩn yêu cầu tuân thủ 100% ở cả 5 nhóm chỉ số hiệu suất. Kết quả tổng thể <strong>Đạt</strong> chỉ được ghi nhận khi đạt đủ 5 chỉ số.
+              Kết quả <strong>Đạt</strong> yêu cầu ít nhất 3/4 KPI hiệu suất có đủ bằng chứng và đạt, đồng thời có ca nhưng không vượt giới hạn an toàn. Trường hợp thiếu dữ liệu được hiển thị riêng.
             </p>
           </div>
 
@@ -144,6 +150,11 @@ export const CounselorListScreen: React.FC<CounselorListScreenProps> = ({
               <XCircle className="w-4 h-4 text-rose-600" />
               <span className="text-2xs font-semibold uppercase text-rose-700">Chưa đạt:</span>
               <span className="text-xs font-bold text-rose-900">{notPassCount}</span>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 rounded-lg border border-amber-200">
+              <AlertTriangle className="w-4 h-4 text-amber-600" />
+              <span className="text-2xs font-semibold uppercase text-amber-700">Thiếu dữ liệu:</span>
+              <span className="text-xs font-bold text-amber-900">{insufficientCount}</span>
             </div>
           </div>
         </div>
@@ -189,7 +200,7 @@ export const CounselorListScreen: React.FC<CounselorListScreenProps> = ({
             }`}
           >
             <XCircle className="w-3.5 h-3.5" />
-            <span>Chưa đạt ({notPassCount})</span>
+            <span>Cần rà soát ({reviewCount})</span>
           </button>
         </div>
 
@@ -247,7 +258,7 @@ export const CounselorListScreen: React.FC<CounselorListScreenProps> = ({
                   className="py-3.5 px-4 cursor-pointer hover:text-slate-800 text-center"
                 >
                   <div className="flex items-center justify-center gap-1">
-                    <span>KPI đạt</span>
+                    <span>KPI hiệu suất đạt</span>
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
@@ -280,6 +291,7 @@ export const CounselorListScreen: React.FC<CounselorListScreenProps> = ({
                   const passedKpis = evaluation.passedKpiCount;
                   const failedKpis = evaluation.failedKpiCount;
                   const isPass = evaluation.overallStatus === 'Pass';
+                  const isInsufficientData = evaluation.overallStatus === 'Insufficient Data';
 
                   return (
                     <tr
@@ -330,13 +342,13 @@ export const CounselorListScreen: React.FC<CounselorListScreenProps> = ({
                       <td className="py-3.5 px-4 text-center">
                         <span
                           className={`inline-flex items-center gap-1 font-bold px-2.5 py-1 rounded-md text-xs ${
-                            passedKpis === 5
+                            isPass
                               ? 'bg-emerald-50 text-emerald-800 font-bold border border-emerald-200'
                               : 'bg-slate-100 text-slate-700'
                           }`}
                         >
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          {passedKpis} / {REQUIRED_KPI_COUNT}
+                          {passedKpis} / {PERFORMANCE_KPI_COUNT}
                         </span>
                       </td>
 
@@ -361,6 +373,14 @@ export const CounselorListScreen: React.FC<CounselorListScreenProps> = ({
                           >
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                             Đạt
+                          </span>
+                        ) : isInsufficientData ? (
+                          <span
+                            id={`badge-status-${c.id}`}
+                            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300 shadow-xs"
+                          >
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                            Chưa đủ dữ liệu
                           </span>
                         ) : (
                           <span

@@ -14,6 +14,7 @@ import {
   CreateCounselorInput,
   DashboardMetrics,
   FeedbackAnalytics,
+  HrComplianceSummary,
   KpiEvidence,
   KPIItem,
   RelationshipSummary,
@@ -47,16 +48,10 @@ export interface AnalyticsDataResult {
 
 export const DEMO_ACCOUNTS = [
   {
-    label: 'Quản trị giám sát',
+    label: 'Quản trị viên',
     email: 'admin@campus-counseling.edu',
-    role: 'Quản trị giám sát',
+    role: 'Quản trị viên',
     roleCode: 'admin',
-  },
-  {
-    label: 'Tư vấn viên',
-    email: 'counselor@campus-counseling.edu',
-    role: 'Tư vấn viên',
-    roleCode: 'counselor',
   },
 ] as const;
 
@@ -80,7 +75,7 @@ const parsedTimeout = Number(import.meta.env.VITE_API_TIMEOUT_MS ?? '10000');
 const API_TIMEOUT_MS = Number.isFinite(parsedTimeout) && parsedTimeout > 0 ? parsedTimeout : 10000;
 const SESSION_STORAGE_KEY = 'digital-twin-admin-session';
 const MOCK_COUNSELORS_STORAGE_KEY = 'digital-twin-admin-mock-counselors-v1';
-const MOCK_STUDENTS_STORAGE_KEY = 'digital-twin-admin-mock-students-v1';
+const MOCK_STUDENTS_STORAGE_KEY = 'digital-twin-admin-mock-students-v2';
 export const UNAUTHORIZED_EVENT = 'digital-twin:unauthorized';
 
 const API_PERIOD_BY_TIME_RANGE: Record<TimeRange, string> = {
@@ -110,9 +105,17 @@ const PROFILE_LABEL_TRANSLATIONS: Record<string, string> = {
 
 export const isRemoteApiConfigured = API_BASE_URL.length > 0;
 export const isCrudDemoMode = (import.meta.env.VITE_CRUD_DEMO_MODE ?? 'false') === 'true';
-export const isWebCrudEnabled = (import.meta.env.VITE_WEB_CRUD_ENABLED ?? 'false') === 'true';
+// The customer's current package is read-only. Data maintenance stays in the
+// configured Google Sheet and cannot be enabled from a deployment variable.
+export const isWebCrudEnabled = false;
 export const googleStudentEntryUrl = (
   import.meta.env.VITE_GOOGLE_STUDENT_ENTRY_URL ?? import.meta.env.VITE_GOOGLE_STUDENT_FORM_URL ?? ''
+).trim();
+export const googleStudentThcsEntryUrl = (
+  import.meta.env.VITE_GOOGLE_STUDENT_THCS_ENTRY_URL ?? googleStudentEntryUrl
+).trim();
+export const googleStudentThptEntryUrl = (
+  import.meta.env.VITE_GOOGLE_STUDENT_THPT_ENTRY_URL ?? googleStudentEntryUrl
 ).trim();
 export const googleCounselorEntryUrl = (
   import.meta.env.VITE_GOOGLE_COUNSELOR_ENTRY_URL ?? googleStudentEntryUrl
@@ -138,6 +141,7 @@ const withEditableProfile = (counselor: Counselor): Counselor => {
     role: localizeProfileLabel(counselor.role ?? counselor.title),
     specialization: localizeProfileLabel(counselor.specialization ?? counselor.department),
     status: counselor.status ?? 'ACTIVE',
+    fteRatio: counselor.fteRatio ?? 1,
   });
 };
 
@@ -146,7 +150,52 @@ const getMockCounselors = (): Counselor[] => {
     const stored = window.localStorage.getItem(MOCK_COUNSELORS_STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored) as Counselor[];
-      if (Array.isArray(parsed)) return parsed.map(withEditableProfile);
+      if (Array.isArray(parsed)) {
+        const expectedIds = new Set(OFFICIAL_KPI_DEFINITIONS.map((definition) => definition.id));
+        return parsed.map((storedCounselor) => {
+          const profile = withEditableProfile(storedCounselor);
+          const hasCurrentPolicy = Array.isArray(profile.kpis)
+            && profile.kpis.length === OFFICIAL_KPI_DEFINITIONS.length
+            && profile.kpis.every((kpi) => expectedIds.has(kpi.id as typeof OFFICIAL_KPI_DEFINITIONS[number]['id']))
+            && profile.hrCompliance !== undefined;
+          if (hasCurrentPolicy) return enforceCounselorKpiPolicy(profile);
+
+          const currentFixture = INITIAL_COUNSELORS.find((item) => item.id === profile.id);
+          if (currentFixture) {
+            return withEditableProfile({
+              ...currentFixture,
+              firstName: profile.firstName,
+              lastName: profile.lastName,
+              name: profile.name,
+              gender: profile.gender,
+              phoneNumber: profile.phoneNumber,
+              email: profile.email,
+              dateOfBirth: profile.dateOfBirth,
+              role: profile.role,
+              specialization: profile.specialization,
+              status: profile.status,
+              title: profile.title,
+              department: profile.department,
+            });
+          }
+
+          const emptyPeriod = createEmptyPeriodMetrics();
+          return enforceCounselorKpiPolicy({
+            ...profile,
+            kpis: createUnavailableKpis(),
+            passedKpiCount: 0,
+            failedKpiCount: 5,
+            overallScore: 0,
+            overallStatus: 'Insufficient Data',
+            hrCompliance: createEmptyHrCompliance(),
+            timeRangeMetrics: {
+              'this-month': emptyPeriod,
+              'last-month': createEmptyPeriodMetrics(),
+              'all-time': createEmptyPeriodMetrics(),
+            },
+          });
+        });
+      }
     }
   } catch {
     // Storage can be unavailable in privacy-restricted browsers; use memory fixtures.
@@ -169,13 +218,32 @@ const INITIAL_STUDENTS: Student[] = [
   {
     id: '20000000-0000-4000-8000-000000000001',
     firstName: 'Học viên',
-    lastName: 'Mẫu',
-    name: 'Học viên Mẫu',
+    lastName: 'THCS Mẫu',
+    name: 'Học viên THCS Mẫu',
     gender: 'UNSPECIFIED',
     phoneNumber: '000-100-0001',
     email: 'student@example.invalid',
     dateOfBirth: '2010-01-01',
     status: 'ACTIVE',
+    schoolLevel: 'THCS',
+    schoolId: null,
+    addressId: null,
+    assignedCounselorId: null,
+    assignedCounselorName: 'Tư vấn viên mẫu',
+    createdAt: new Date().toISOString(),
+    updatedAt: null,
+  },
+  {
+    id: '20000000-0000-4000-8000-000000000002',
+    firstName: 'Học viên',
+    lastName: 'THPT Mẫu',
+    name: 'Học viên THPT Mẫu',
+    gender: 'UNSPECIFIED',
+    phoneNumber: '000-100-0002',
+    email: 'student.thpt@example.invalid',
+    dateOfBirth: '2008-01-01',
+    status: 'ACTIVE',
+    schoolLevel: 'THPT',
     schoolId: null,
     addressId: null,
     assignedCounselorId: null,
@@ -217,9 +285,22 @@ const createUnavailableKpis = (): KPIItem[] =>
     targetNumeric: definition.targetNumeric,
     unit: definition.unit,
     comparisonType: definition.comparisonType,
+    weight: definition.weight,
+    score: 0,
+    hardGuardrail: definition.hardGuardrail,
     isPassed: false,
     notes: 'Chưa có dữ liệu phân tích demo nào được ghi nhận cho tư vấn viên này.',
   }));
+
+const createEmptyHrCompliance = (): HrComplianceSummary => ({
+  status: 'No Data',
+  registeredWorkdays: 0,
+  registeredHours: 0,
+  maxDailyHours: 0,
+  overLimitDays: 0,
+  weeksWithoutRest: 0,
+  note: 'Chấm công HR được theo dõi riêng; chưa có dữ liệu cho kỳ này.',
+});
 
 const createEmptyPeriodMetrics = (): CounselorPeriodMetrics => ({
   assignedStudents: 0,
@@ -234,7 +315,9 @@ const createEmptyPeriodMetrics = (): CounselorPeriodMetrics => ({
   satisfactionScore: 0,
   feedbackCount: 0,
   passedKpiCount: 0,
-  overallStatus: 'Not Pass',
+  overallScore: 0,
+  overallStatus: 'Insufficient Data',
+  hrCompliance: createEmptyHrCompliance(),
   kpis: createUnavailableKpis(),
 });
 
@@ -306,11 +389,15 @@ const normalizeComparisonType = (value: unknown): KPIItem['comparisonType'] => {
 };
 
 const KPI_ID_ALIASES: Record<string, string> = {
-  caseload_compliance: 'caseload-compliance',
-  session_completion_rate: 'session-completion-rate',
-  booking_cancellation_rate: 'booking-cancellation-rate',
-  test_completion_rate: 'test-completion-rate',
-  student_satisfaction: 'student-satisfaction',
+  weighted_caseload_capacity: 'weighted-caseload-capacity',
+  student_service_time: 'student-service-time',
+  eligible_session_completion: 'eligible-session-completion',
+  assessment_follow_through: 'assessment-follow-through',
+  student_outcome_experience: 'student-outcome-experience',
+  caseload_compliance: 'weighted-caseload-capacity',
+  session_completion_rate: 'eligible-session-completion',
+  test_completion_rate: 'assessment-follow-through',
+  student_satisfaction: 'student-outcome-experience',
 };
 
 const normalizeKpiId = (value: unknown, fallback: string): string => {
@@ -323,10 +410,28 @@ const normalizeEvidence = (value: unknown): KpiEvidence | undefined => {
   const numerator = toNumberValue(pick(value, 'numerator'), Number.NaN);
   const denominator = toNumberValue(pick(value, 'denominator'), Number.NaN);
   const sampleSize = toNumberValue(pick(value, 'sampleSize', 'sample_size'), Number.NaN);
+  const registeredHours = toNumberValue(pick(value, 'registeredHours', 'registered_hours'), Number.NaN);
+  const maxDailyHours = toNumberValue(pick(value, 'maxDailyHours', 'max_daily_hours'), Number.NaN);
+  const overLimitDays = toNumberValue(pick(value, 'overLimitDays', 'over_limit_days'), Number.NaN);
+  const weeksWithoutRest = toNumberValue(pick(value, 'weeksWithoutRest', 'weeks_without_rest'), Number.NaN);
+  const weightedCaseloadPoints = toNumberValue(pick(value, 'weightedCaseloadPoints', 'weighted_caseload_points'), Number.NaN);
+  const fteRatio = toNumberValue(pick(value, 'fteRatio', 'fte_ratio'), Number.NaN);
+  const studentServiceHours = toNumberValue(pick(value, 'studentServiceHours', 'student_service_hours'), Number.NaN);
+  const minimumSampleSize = toNumberValue(pick(value, 'minimumSampleSize', 'minimum_sample_size'), Number.NaN);
+  const averageRating = toNumberValue(pick(value, 'averageRating', 'average_rating'), Number.NaN);
   const evidence: KpiEvidence = {};
   if (Number.isFinite(numerator)) evidence.numerator = numerator;
   if (Number.isFinite(denominator)) evidence.denominator = denominator;
   if (Number.isFinite(sampleSize)) evidence.sampleSize = sampleSize;
+  if (Number.isFinite(registeredHours)) evidence.registeredHours = registeredHours;
+  if (Number.isFinite(maxDailyHours)) evidence.maxDailyHours = maxDailyHours;
+  if (Number.isFinite(overLimitDays)) evidence.overLimitDays = overLimitDays;
+  if (Number.isFinite(weeksWithoutRest)) evidence.weeksWithoutRest = weeksWithoutRest;
+  if (Number.isFinite(weightedCaseloadPoints)) evidence.weightedCaseloadPoints = weightedCaseloadPoints;
+  if (Number.isFinite(fteRatio)) evidence.fteRatio = fteRatio;
+  if (Number.isFinite(studentServiceHours)) evidence.studentServiceHours = studentServiceHours;
+  if (Number.isFinite(minimumSampleSize)) evidence.minimumSampleSize = minimumSampleSize;
+  if (Number.isFinite(averageRating)) evidence.averageRating = averageRating;
   return Object.keys(evidence).length > 0 ? evidence : undefined;
 };
 
@@ -360,7 +465,10 @@ const normalizeKpi = (value: unknown, index: number): KPIItem => {
     comparisonType: normalizeComparisonType(
       pick(raw, 'comparisonType', 'comparison_type', 'operator'),
     ),
-    // The strict KPI policy recalculates this value from actual and target values.
+    weight: toNumberValue(pick(raw, 'weight'), 0),
+    score: toNumberValue(pick(raw, 'score'), 0),
+    hardGuardrail: Boolean(pick(raw, 'hardGuardrail', 'hard_guardrail')),
+    // The canonical weighted policy recalculates this value from trusted definitions.
     isPassed: false,
     notes: toStringValue(pick(raw, 'notes', 'note', 'description'), 'Chưa có ghi chú kiểm định.'),
     evidence: normalizeEvidence(pick(raw, 'evidence', 'calculation', 'calculation_evidence')),
@@ -369,6 +477,28 @@ const normalizeKpi = (value: unknown, index: number): KPIItem => {
 
 const normalizeKpis = (value: unknown): KPIItem[] =>
   toArray(value).map((kpi, index) => normalizeKpi(kpi, index));
+
+const normalizeHrCompliance = (value: unknown): HrComplianceSummary => {
+  if (!isRecord(value)) return createEmptyHrCompliance();
+  const rawStatus = toStringValue(pick(value, 'status'), 'No Data');
+  const status: HrComplianceSummary['status'] = rawStatus === 'Compliant'
+    ? 'Compliant'
+    : rawStatus === 'Needs Review'
+      ? 'Needs Review'
+      : 'No Data';
+  return {
+    status,
+    registeredWorkdays: toNumberValue(pick(value, 'registeredWorkdays', 'registered_workdays')),
+    registeredHours: toNumberValue(pick(value, 'registeredHours', 'registered_hours')),
+    maxDailyHours: toNumberValue(pick(value, 'maxDailyHours', 'max_daily_hours')),
+    overLimitDays: toNumberValue(pick(value, 'overLimitDays', 'over_limit_days')),
+    weeksWithoutRest: toNumberValue(pick(value, 'weeksWithoutRest', 'weeks_without_rest')),
+    note: toStringValue(
+      pick(value, 'note'),
+      'Chấm công HR được theo dõi riêng và không ảnh hưởng đến 4 KPI hiệu suất hoặc điều kiện an toàn tải ca.',
+    ),
+  };
+};
 
 const normalizeRelationshipSummary = (value: unknown, fallback: JsonRecord): RelationshipSummary => {
   const raw = isRecord(value) ? value : {};
@@ -404,6 +534,7 @@ const normalizePeriodMetrics = (
   const readNumber = (camelCase: string, snakeCase: string, fallbackValue: number) =>
     toNumberValue(pick(value, camelCase, snakeCase), fallbackValue);
   const rawKpis = pick(value, 'kpis', 'kpiResults', 'kpi_results');
+  const hrCompliance = normalizeHrCompliance(pick(value, 'hrCompliance', 'hr_compliance'));
   const completedTests = readNumber('completedTests', 'completed_tests', fallback.completedTests);
   const pendingTests = readNumber('pendingTests', 'pending_tests', fallback.pendingTests);
   const completedSessions = readNumber('completedSessions', 'completed_sessions', 0);
@@ -431,7 +562,9 @@ const normalizePeriodMetrics = (
     ),
     feedbackCount: readNumber('feedbackCount', 'feedback_count', 0),
     passedKpiCount: 0,
-    overallStatus: 'Not Pass',
+    overallScore: 0,
+    overallStatus: 'Insufficient Data',
+    hrCompliance,
     kpis: rawKpis === undefined ? undefined : normalizeKpis(rawKpis),
   };
 };
@@ -461,6 +594,10 @@ const normalizeCounselor = (
   const topLevelKpis = pick(value, 'kpis', 'kpiResults', 'kpi_results');
   const directPeriodKpis = pick(directPeriod, 'kpis', 'kpiResults', 'kpi_results');
   const kpis = normalizeKpis(topLevelKpis ?? directPeriodKpis);
+  const hrCompliance = normalizeHrCompliance(
+    pick(value, 'hrCompliance', 'hr_compliance')
+      ?? pick(directPeriod, 'hrCompliance', 'hr_compliance'),
+  );
   const relationshipSummary = normalizeRelationshipSummary(
     pick(value, 'relationshipSummary', 'relationship_summary'),
     value,
@@ -486,6 +623,7 @@ const normalizeCounselor = (
     role: localizeProfileLabel(pick(value, 'role')) || null,
     specialization: localizeProfileLabel(pick(value, 'specialization')) || null,
     status: (toStringValue(pick(value, 'status'), 'ACTIVE').toUpperCase() as Counselor['status']),
+    fteRatio: toNumberValue(pick(value, 'fteRatio', 'fte_ratio'), 1),
     avatarColor: toStringValue(
       pick(value, 'avatarColor', 'avatar_color'),
       AVATAR_COLORS[index % AVATAR_COLORS.length],
@@ -494,7 +632,9 @@ const normalizeCounselor = (
     kpis,
     passedKpiCount: 0,
     failedKpiCount: 5,
-    overallStatus: 'Not Pass',
+    overallScore: 0,
+    overallStatus: 'Insufficient Data',
+    hrCompliance,
     relationshipSummary,
     timeRangeMetrics: {
       'this-month': normalizePeriodMetrics(
@@ -536,6 +676,26 @@ const normalizeStudent = (value: unknown): Student => {
   if (!id || !firstName || !lastName) {
     throw new ApiError('Bản ghi Student bị thiếu mã hoặc họ tên.');
   }
+  const schoolValue = pick(value, 'school');
+  const schoolRecord = isRecord(schoolValue) ? schoolValue : {};
+  const rawSchoolLevel = toStringValue(
+    pick(
+      value,
+      'schoolLevel',
+      'school_level',
+      'educationLevel',
+      'education_level',
+      'schoolType',
+      'school_type',
+      'sourceSheet',
+      'source_sheet',
+    ) ?? pick(schoolRecord, 'level', 'schoolLevel', 'school_level', 'type', 'name'),
+  ).toUpperCase();
+  const schoolLevel: Student['schoolLevel'] = rawSchoolLevel.includes('THCS')
+    ? 'THCS'
+    : rawSchoolLevel.includes('THPT')
+      ? 'THPT'
+      : null;
   return {
     id,
     firstName,
@@ -548,6 +708,7 @@ const normalizeStudent = (value: unknown): Student => {
     status: toStringValue(pick(value, 'status'), 'ACTIVE').toUpperCase() === 'INACTIVE'
       ? 'INACTIVE'
       : 'ACTIVE',
+    schoolLevel,
     schoolId: toStringValue(pick(value, 'schoolId', 'school_id')) || null,
     addressId: toStringValue(pick(value, 'addressId', 'address_id')) || null,
     assignedCounselorId: toStringValue(
@@ -850,13 +1011,15 @@ export const loginAdmin = async (credentials: LoginCredentials): Promise<AuthSes
   const userRecord = isRecord(userValue) ? userValue : {};
   const email = toStringValue(pick(userRecord, 'email'), credentials.email.trim());
   const rawRole = toStringValue(pick(userRecord, 'role')).toLowerCase();
-  const roleCode: AdminUser['roleCode'] = rawRole === 'counselor' ? 'counselor' : 'admin';
+  if (rawRole !== 'admin' && rawRole !== 'administrator') {
+    throw new ApiError('Tài khoản này không có quyền truy cập cổng quản trị.', 403);
+  }
   const user: AdminUser = {
     id: toStringValue(pick(userRecord, 'id', 'userId', 'user_id'), email),
     name: localizeProfileLabel(pick(userRecord, 'name', 'fullName', 'full_name'), 'Người quản trị'),
     email,
-    role: roleCode === 'counselor' ? 'Tư vấn viên' : 'Quản trị viên',
-    roleCode,
+    role: 'Quản trị viên',
+    roleCode: 'admin',
   };
 
   return {
@@ -1107,6 +1270,7 @@ export const createCounselor = async (
       role: input.role ?? 'Tư vấn viên',
       specialization: input.specialization ?? 'Dịch vụ tham vấn',
       status: input.status,
+      fteRatio: input.fteRatio ?? 1,
       title: input.role ?? 'Tư vấn viên',
       department: input.specialization ?? 'Dịch vụ tham vấn',
       avatarColor: AVATAR_COLORS[current.length % AVATAR_COLORS.length],
@@ -1114,7 +1278,9 @@ export const createCounselor = async (
       kpis: thisMonth.kpis ?? createUnavailableKpis(),
       passedKpiCount: 0,
       failedKpiCount: 5,
-      overallStatus: 'Not Pass',
+      overallScore: 0,
+      overallStatus: 'Insufficient Data',
+      hrCompliance: createEmptyHrCompliance(),
       relationshipSummary: {
         assignedStudents: 0,
         completedBookings: 0,
@@ -1231,6 +1397,7 @@ export const createStudent = async (
       email: input.email ?? null,
       dateOfBirth: input.dateOfBirth ?? null,
       status: input.status,
+      schoolLevel: input.schoolLevel ?? null,
       schoolId: null,
       addressId: null,
       assignedCounselorId: session.user.roleCode === 'counselor' ? session.user.id : null,
@@ -1308,14 +1475,18 @@ export const restoreSession = (): AuthSession | null => {
     const stored = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (!stored) return null;
     const session = JSON.parse(stored) as AuthSession;
-    if (!session.user?.email || (session.source !== 'api' && session.source !== 'mock')) return null;
+    if (
+      !session.user?.email
+      || session.user.roleCode !== 'admin'
+      || (session.source !== 'api' && session.source !== 'mock')
+    ) return null;
     return {
       ...session,
       user: {
         ...session.user,
         name: localizeProfileLabel(session.user.name, 'Người quản trị'),
         role: localizeProfileLabel(session.user.role, 'Quản trị viên'),
-        roleCode: session.user.roleCode === 'counselor' ? 'counselor' : 'admin',
+        roleCode: 'admin',
       },
     };
   } catch {
