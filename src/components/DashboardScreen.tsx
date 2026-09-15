@@ -136,15 +136,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           {/* 2. Active Counselors */}
           <KpiCard
             id="kpi-card-active-counselors"
-            title="Tư vấn viên hoạt động"
+            title="Tư vấn viên hiện có"
             value={metrics.activeCounselors}
-            subtitle="Nhân sự trong danh sách"
+            subtitle="Nhân sự đang phụ trách"
             icon={UserCheck}
             variant="teal"
             trend={{
-              value: '100%',
+              value: '0%',
               isPositive: true,
-              label: 'công suất',
+              label: 'so với tháng trước',
             }}
           />
 
@@ -159,15 +159,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             trend={{
               value: '8.5%',
               isPositive: true,
-              label: 'mức sử dụng',
+              label: 'so với tháng trước',
             }}
           />
 
           <KpiCard
             id="kpi-card-total-tests"
-            title="Bài test hoạt động"
+            title="Bài test áp dụng"
             value={metrics.totalTests.toLocaleString('vi-VN')}
-            subtitle={`${metrics.totalTestAttempts.toLocaleString('vi-VN')} lượt làm trong kỳ`}
+            subtitle={`${metrics.totalTestAttempts.toLocaleString('vi-VN')} lượt học sinh làm bài`}
             icon={FlaskConical}
             variant="default"
           />
@@ -175,9 +175,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           {/* 4. Passed Counselors */}
           <KpiCard
             id="kpi-card-passed-counselors"
-            title="Tư vấn viên đạt"
+            title="Tư vấn viên đạt chuẩn KPI"
             value={metrics.passedCounselors}
-            subtitle="Đạt ít nhất 3/4 KPI và không quá tải"
+            subtitle="Đạt ít nhất 3/4 KPI và tải ca an toàn"
             icon={CheckCircle2}
             variant="success"
             trend={{
@@ -187,7 +187,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                   : 0
               }%`,
               isPositive: true,
-              label: 'tuân thủ',
+              label: 'tỷ lệ đạt',
             }}
             onClick={() => handleKpiFilterClick('pass')}
           />
