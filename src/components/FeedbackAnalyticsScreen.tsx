@@ -14,6 +14,8 @@ interface FeedbackAnalyticsScreenProps {
   onFiltersChange: (filters: AnalyticsFilters) => void;
   onExport: () => void;
   isExporting: boolean;
+  onRefresh: () => void;
+  isRefreshing: boolean;
 }
 
 export const FeedbackAnalyticsScreen: React.FC<FeedbackAnalyticsScreenProps> = ({
@@ -23,6 +25,8 @@ export const FeedbackAnalyticsScreen: React.FC<FeedbackAnalyticsScreenProps> = (
   onFiltersChange,
   onExport,
   isExporting,
+  onRefresh,
+  isRefreshing,
 }) => {
   const maximum = Math.max(
     1,
@@ -54,6 +58,8 @@ export const FeedbackAnalyticsScreen: React.FC<FeedbackAnalyticsScreenProps> = (
         isExporting={isExporting}
         exportLabel="Xuất feedback CSV"
         showTestFilter={false}
+        onRefresh={onRefresh}
+        isRefreshing={isRefreshing}
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

@@ -33,6 +33,7 @@ import {
   googleStudentThcsEntryUrl,
   googleStudentThptEntryUrl,
   googleCounselorEntryUrl,
+  analyticsSyncIntervalMs,
   studentSyncIntervalMs,
   restoreSession,
   saveSession,
@@ -260,6 +261,47 @@ export default function App() {
     }, studentSyncIntervalMs);
     return () => window.clearInterval(intervalId);
   }, [session, timeRange]);
+
+  useEffect(() => {
+    if (
+      !session ||
+      session.user.roleCode !== 'admin' ||
+      isCrudDemoMode ||
+      currentScreen !== 'feedback-analytics'
+    ) return;
+
+    let isActive = true;
+    let isRequestRunning = false;
+    const refreshFeedback = async () => {
+      if (isRequestRunning) return;
+      isRequestRunning = true;
+      try {
+        const result = await loadAnalyticsData(session, timeRange, analyticsFilters);
+        if (!isActive) return;
+        setFilterOptions(result.filterOptions);
+        setStudentTrends(result.studentTrends);
+        setFeedbackAnalytics(result.feedback);
+        setAnalyticsError(null);
+      } catch (error) {
+        if (!isActive) return;
+        setAnalyticsError(
+          error instanceof Error ? error.message : 'Không thể cập nhật dữ liệu feedback.',
+        );
+      } finally {
+        isRequestRunning = false;
+      }
+    };
+
+    void refreshFeedback();
+    const intervalId = window.setInterval(() => void refreshFeedback(), analyticsSyncIntervalMs);
+    const refreshOnFocus = () => void refreshFeedback();
+    window.addEventListener('focus', refreshOnFocus);
+    return () => {
+      isActive = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
+  }, [session, currentScreen, timeRange, analyticsFilters]);
 
   useEffect(() => {
     if (session?.user.roleCode === 'counselor' && currentScreen !== 'students') {
@@ -658,6 +700,8 @@ export default function App() {
                     onFiltersChange={setAnalyticsFilters}
                     onExport={() => void handleExport('feedback')}
                     isExporting={isExporting}
+                    onRefresh={() => setRefreshKey((key) => key + 1)}
+                    isRefreshing={isAnalyticsLoading}
                   />
                 </motion.div>
               )}

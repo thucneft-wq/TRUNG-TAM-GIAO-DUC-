@@ -124,6 +124,10 @@ const parsedStudentSyncInterval = Number(import.meta.env.VITE_STUDENT_SYNC_INTER
 export const studentSyncIntervalMs = Number.isFinite(parsedStudentSyncInterval) && parsedStudentSyncInterval >= 3000
   ? parsedStudentSyncInterval
   : 10000;
+const parsedAnalyticsSyncInterval = Number(import.meta.env.VITE_ANALYTICS_SYNC_INTERVAL_MS ?? '15000');
+export const analyticsSyncIntervalMs = Number.isFinite(parsedAnalyticsSyncInterval) && parsedAnalyticsSyncInterval >= 5000
+  ? parsedAnalyticsSyncInterval
+  : 15000;
 
 const localizeCounselorName = (name: string): string =>
   name.replace(/^Demo Counselor\s+([A-Z])$/i, 'Tư vấn viên mẫu $1');
@@ -1146,10 +1150,14 @@ export const loadAnalyticsData = async (
   }
 
   const query = analyticsQuery(timeRange, filters);
+  const analyticsRequestOptions: RequestInit = {
+    headers: authorizationHeaders(session),
+    cache: 'no-store',
+  };
   const [filterPayload, studentPayload, feedbackPayload] = await Promise.all([
-    requestJson(ANALYTICS_FILTERS_ENDPOINT, { headers: authorizationHeaders(session) }),
-    requestJson(STUDENT_TRENDS_ENDPOINT, { headers: authorizationHeaders(session) }, query),
-    requestJson(FEEDBACK_ANALYTICS_ENDPOINT, { headers: authorizationHeaders(session) }, query),
+    requestJson(ANALYTICS_FILTERS_ENDPOINT, analyticsRequestOptions),
+    requestJson(STUDENT_TRENDS_ENDPOINT, analyticsRequestOptions, query),
+    requestJson(FEEDBACK_ANALYTICS_ENDPOINT, analyticsRequestOptions, query),
   ]);
 
   return {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, Filter, RotateCcw } from 'lucide-react';
+import { Download, Filter, RefreshCw, RotateCcw } from 'lucide-react';
 import type { AnalyticsFilterOptions, AnalyticsFilters } from '../types';
 
 interface AnalyticsFilterBarProps {
@@ -10,6 +10,8 @@ interface AnalyticsFilterBarProps {
   isExporting: boolean;
   exportLabel: string;
   showTestFilter?: boolean;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
@@ -20,6 +22,8 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
   isExporting,
   exportLabel,
   showTestFilter = true,
+  onRefresh,
+  isRefreshing = false,
 }) => {
   const update = (key: keyof AnalyticsFilters, value: string) => {
     onChange({ ...filters, [key]: value });
@@ -39,6 +43,17 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {onRefresh && (
+            <button
+              type="button"
+              disabled={isRefreshing}
+              onClick={onRefresh}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 disabled:cursor-wait disabled:opacity-60"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Đang cập nhật…' : 'Làm mới dữ liệu'}
+            </button>
+          )}
           <button
             type="button"
             disabled={!hasFilters}
