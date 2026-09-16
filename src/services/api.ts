@@ -57,10 +57,15 @@ export const DEMO_ACCOUNTS = [
 
 const DEFAULT_PRODUCTION_API_BASE_URL =
   'https://trung-tam-giao-duc-backend.vercel.app/api';
+const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/$/, '');
+const isLegacyProductionApiUrl = configuredApiBaseUrl.includes(
+  'trung-tam-giao-duc-backend-xi.vercel.app',
+);
 const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL
-  ?? (import.meta.env.PROD ? DEFAULT_PRODUCTION_API_BASE_URL : '')
-).trim().replace(/\/$/, '');
+  import.meta.env.PROD && isLegacyProductionApiUrl
+    ? DEFAULT_PRODUCTION_API_BASE_URL
+    : configuredApiBaseUrl || (import.meta.env.PROD ? DEFAULT_PRODUCTION_API_BASE_URL : '')
+).replace(/\/$/, '');
 const AUTH_ENDPOINT = import.meta.env.VITE_AUTH_ENDPOINT ?? '/auth/login';
 const COUNSELORS_ENDPOINT = import.meta.env.VITE_COUNSELORS_ENDPOINT ?? '/admin/counselors';
 const COUNSELOR_DETAIL_ENDPOINT =
