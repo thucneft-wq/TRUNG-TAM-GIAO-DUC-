@@ -29,6 +29,7 @@ import {
   loadAuditLogs,
   loadStudents,
   isCrudDemoMode,
+  isRemoteApiConfigured,
   isWebCrudEnabled,
   googleStudentThcsEntryUrl,
   googleStudentThptEntryUrl,
@@ -93,7 +94,9 @@ const DEFAULT_ADMIN_SESSION: AuthSession = {
 };
 
 export default function App() {
-  const [session, setSession] = useState<AuthSession | null>(() => restoreSession() ?? DEFAULT_ADMIN_SESSION);
+  const [session, setSession] = useState<AuthSession | null>(() =>
+    restoreSession() ?? (isRemoteApiConfigured ? null : DEFAULT_ADMIN_SESSION),
+  );
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('dashboard');
   const [timeRange, setTimeRange] = useState<TimeRange>('this-month');
   const [counselors, setCounselors] = useState<Counselor[]>([]);

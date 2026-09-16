@@ -55,7 +55,12 @@ export const DEMO_ACCOUNTS = [
   },
 ] as const;
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/$/, '');
+const DEFAULT_PRODUCTION_API_BASE_URL =
+  'https://trung-tam-giao-duc-backend-xi.vercel.app/api';
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL
+  ?? (import.meta.env.PROD ? DEFAULT_PRODUCTION_API_BASE_URL : '')
+).trim().replace(/\/$/, '');
 const AUTH_ENDPOINT = import.meta.env.VITE_AUTH_ENDPOINT ?? '/auth/login';
 const COUNSELORS_ENDPOINT = import.meta.env.VITE_COUNSELORS_ENDPOINT ?? '/admin/counselors';
 const COUNSELOR_DETAIL_ENDPOINT =
@@ -1488,6 +1493,10 @@ export const restoreSession = (): AuthSession | null => {
       || session.user.roleCode !== 'admin'
       || (session.source !== 'api' && session.source !== 'mock')
     ) return null;
+    // Never keep a browser-only demo session once this build is connected to
+    // the production API. It would make the UI continue showing mock metrics
+    // even after the database has changed.
+    if (isRemoteApiConfigured && session.source !== 'api') return null;
     return {
       ...session,
       user: {
