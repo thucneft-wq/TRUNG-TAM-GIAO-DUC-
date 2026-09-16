@@ -139,7 +139,7 @@ export interface CreateCounselorInput {
 
 export type UpdateCounselorInput = Partial<CreateCounselorInput>;
 
-export type StudentStatus = 'ACTIVE' | 'INACTIVE';
+export type StudentStatus = 'ACTIVE' | 'COMPLETED' | 'INACTIVE';
 export type SchoolLevel = 'THCS' | 'THPT';
 
 export interface Student {
@@ -157,6 +157,8 @@ export interface Student {
   addressId: string | null;
   assignedCounselorId: string | null;
   assignedCounselorName: string | null;
+  assignmentStatus: string | null;
+  assignmentEndedAt: string | null;
   createdAt: string;
   updatedAt: string | null;
 }

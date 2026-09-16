@@ -37,6 +37,16 @@ import {
 } from '../domain/kpiPolicy';
 import { CounselorFormModal } from './CounselorFormModal';
 
+const formatSessionDuration = (hours: number | null | undefined): string => {
+  if (!hours || hours <= 0) return '0 giờ';
+  const totalMinutes = Math.round(hours * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if (h === 0) return `${m} phút`;
+  if (m === 0) return `${h} giờ`;
+  return `${h} giờ ${m} phút`;
+};
+
 interface CounselorDetailScreenProps {
   counselor: Counselor;
   allCounselors: Counselor[];
@@ -434,20 +444,37 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
           </span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
-          {[
-            ['Ngày đăng ký', hrCompliance.registeredWorkdays],
-            ['Giờ đăng ký', hrCompliance.registeredHours],
-            ['Thời lượng tối đa/ca', `${hrCompliance.maxDailyHours} giờ`],
-            ['Ca vượt 1 giờ', hrCompliance.overLimitDays],
-            ['Tuần thiếu ngày nghỉ', hrCompliance.weeksWithoutRest],
-          ].map(([label, value]) => (
-            <div key={String(label)} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
-              <div className="text-2xs text-slate-500">{label}</div>
-              <div className="mt-1 text-lg font-bold text-slate-900">{value}</div>
+          <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 flex flex-col justify-center">
+            <div className="text-2xs text-slate-500">Ngày đăng ký</div>
+            <div className="mt-1 text-lg font-bold text-slate-900">{hrCompliance.registeredWorkdays}</div>
+          </div>
+
+          <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 flex flex-col justify-center">
+            <div className="text-2xs text-slate-500">Giờ đăng ký</div>
+            <div className="mt-1 text-lg font-bold text-slate-900">{hrCompliance.registeredHours}</div>
+          </div>
+
+          <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 flex flex-col justify-center">
+            <div className="text-2xs text-slate-500">Ca dài nhất</div>
+            <div className="mt-1 text-lg font-bold text-slate-900">
+              {formatSessionDuration(hrCompliance.maxDailyHours)}
             </div>
-          ))}
+            <div className="text-2xs text-slate-400 mt-0.5 font-medium">Giới hạn: 1 giờ/ca</div>
+          </div>
+
+          <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 flex flex-col justify-center">
+            <div className="text-2xs text-slate-500">Ca vượt 1 giờ</div>
+            <div className="mt-1 text-lg font-bold text-slate-900">{hrCompliance.overLimitDays}</div>
+          </div>
+
+          <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 flex flex-col justify-center">
+            <div className="text-2xs text-slate-500">Tuần thiếu ngày nghỉ</div>
+            <div className="mt-1 text-lg font-bold text-slate-900">{hrCompliance.weeksWithoutRest}</div>
+          </div>
         </div>
-        <p className="text-2xs leading-relaxed text-slate-500">{hrCompliance.note}</p>
+        <p className="text-2xs leading-relaxed text-slate-500">
+          Mỗi ca tư vấn tối đa 1 giờ. Các ca vượt giới hạn sẽ được ghi nhận riêng.
+        </p>
       </div>
 
       {/* Section 2: Relationship Summary */}

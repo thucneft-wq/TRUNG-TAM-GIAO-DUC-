@@ -47,20 +47,27 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
 }) => {
   const [query, setQuery] = useState('');
   const [levelFilter, setLevelFilter] = useState<'THCS' | 'THPT' | 'UNKNOWN'>('THCS');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | Student['status']>('ACTIVE');
   const [editing, setEditing] = useState<Student | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const levelCounts = useMemo(() => ({
-    THCS: students.filter((student) => student.schoolLevel === 'THCS').length,
-    THPT: students.filter((student) => student.schoolLevel === 'THPT').length,
-    UNKNOWN: students.filter((student) => !student.schoolLevel).length,
-  }), [students]);
+  const levelCounts = useMemo(() => {
+    const statusStudents = students.filter(
+      (student) => statusFilter === 'ALL' || student.status === statusFilter,
+    );
+    return {
+      THCS: statusStudents.filter((student) => student.schoolLevel === 'THCS').length,
+      THPT: statusStudents.filter((student) => student.schoolLevel === 'THPT').length,
+      UNKNOWN: statusStudents.filter((student) => !student.schoolLevel).length,
+    };
+  }, [statusFilter, students]);
 
   const filtered = useMemo(() => {
     const keyword = query.trim().toLocaleLowerCase('vi-VN');
     return students.filter((student) => {
+      if (statusFilter !== 'ALL' && student.status !== statusFilter) return false;
       const matchesLevel = levelFilter === 'UNKNOWN'
         ? !student.schoolLevel
         : student.schoolLevel === levelFilter;
@@ -69,7 +76,12 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
       return [student.name, student.email ?? '', student.phoneNumber]
         .some((value) => value.toLocaleLowerCase('vi-VN').includes(keyword));
     });
-  }, [levelFilter, query, students]);
+  }, [levelFilter, query, statusFilter, students]);
+
+  const activeStudentCount = useMemo(
+    () => students.filter((student) => student.status === 'ACTIVE').length,
+    [students],
+  );
 
   const openSheet = (level: 'thcs' | 'thpt') => {
     const url = googleEntryUrls[level];
@@ -187,18 +199,33 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
         <div className="flex flex-col gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-sm font-bold text-slate-900">Danh sách {levelFilter === 'UNKNOWN' ? 'Student chưa phân loại' : `học sinh ${levelFilter}`}</h3>
-            <p className="mt-0.5 text-xs text-slate-500">{filtered.length} hồ sơ phù hợp · {students.length} hồ sơ đang hoạt động</p>
+            <p className="mt-0.5 text-xs text-slate-500">{filtered.length} hồ sơ phù hợp · {activeStudentCount} hồ sơ đang tư vấn</p>
           </div>
-          <label className="relative block w-full sm:w-80">
-            <span className="sr-only">Tìm Student</span>
-            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Tìm theo tên, email, số điện thoại"
-              className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            />
-          </label>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <label className="block sm:w-44">
+              <span className="sr-only">Lọc theo trạng thái</span>
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as 'ALL' | Student['status'])}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              >
+                <option value="ACTIVE">Đang tư vấn</option>
+                <option value="COMPLETED">Đã hoàn thành</option>
+                <option value="INACTIVE">Ngừng theo dõi</option>
+                <option value="ALL">Tất cả trạng thái</option>
+              </select>
+            </label>
+            <label className="relative block w-full sm:w-80">
+              <span className="sr-only">Tìm Student</span>
+              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Tìm theo tên, email, số điện thoại"
+                className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              />
+            </label>
+          </div>
         </div>
 
         {filtered.length === 0 ? (
@@ -209,12 +236,13 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[780px] text-left text-xs">
+            <table className="w-full min-w-[920px] text-left text-xs">
               <thead className="bg-slate-50 text-2xs uppercase tracking-wider text-slate-500">
                 <tr>
                   <th className="px-5 py-3">Student</th>
                   <th className="px-4 py-3">Liên hệ</th>
                   <th className="px-4 py-3">Ngày sinh</th>
+                  <th className="px-4 py-3">Trạng thái</th>
                   <th className="px-4 py-3">Tư vấn viên</th>
                   <th className="px-5 py-3 text-right">Cập nhật</th>
                 </tr>
@@ -231,7 +259,27 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                       <div className="mt-1 flex items-center gap-1.5 text-slate-500"><Mail className="h-3.5 w-3.5" />{student.email ?? 'Chưa có email'}</div>
                     </td>
                     <td className="px-4 py-4">{student.dateOfBirth ?? '—'}</td>
-                    <td className="px-4 py-4">{student.assignedCounselorName ?? 'Chưa phân công'}</td>
+                    <td className="px-4 py-4">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-2xs font-bold ${
+                        student.status === 'ACTIVE'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : student.status === 'COMPLETED'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {student.status === 'ACTIVE'
+                          ? 'Đang tư vấn'
+                          : student.status === 'COMPLETED'
+                            ? 'Đã hoàn thành'
+                            : 'Ngừng theo dõi'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div>{student.assignedCounselorName ?? 'Chưa phân công'}</div>
+                      {student.assignmentStatus && student.assignmentStatus !== 'ACTIVE' && (
+                        <div className="mt-1 text-2xs text-slate-400">Phân công đã kết thúc</div>
+                      )}
+                    </td>
                     <td className="px-5 py-4">
                       <div className="flex justify-end gap-2">
                         {webCrudEnabled ? (

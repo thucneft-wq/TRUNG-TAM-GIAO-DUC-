@@ -239,6 +239,8 @@ const INITIAL_STUDENTS: Student[] = [
     addressId: null,
     assignedCounselorId: null,
     assignedCounselorName: 'Tư vấn viên mẫu',
+    assignmentStatus: 'ACTIVE',
+    assignmentEndedAt: null,
     createdAt: new Date().toISOString(),
     updatedAt: null,
   },
@@ -257,6 +259,8 @@ const INITIAL_STUDENTS: Student[] = [
     addressId: null,
     assignedCounselorId: null,
     assignedCounselorName: 'Tư vấn viên mẫu',
+    assignmentStatus: 'ACTIVE',
+    assignmentEndedAt: null,
     createdAt: new Date().toISOString(),
     updatedAt: null,
   },
@@ -705,6 +709,12 @@ const normalizeStudent = (value: unknown): Student => {
     : rawSchoolLevel.includes('THPT')
       ? 'THPT'
       : null;
+  const rawStudentStatus = toStringValue(pick(value, 'status'), 'ACTIVE').toUpperCase();
+  const status: Student['status'] = rawStudentStatus === 'COMPLETED'
+    ? 'COMPLETED'
+    : rawStudentStatus === 'INACTIVE'
+      ? 'INACTIVE'
+      : 'ACTIVE';
   return {
     id,
     firstName,
@@ -714,9 +724,7 @@ const normalizeStudent = (value: unknown): Student => {
     phoneNumber: toStringValue(pick(value, 'phoneNumber', 'phone_number')),
     email: toStringValue(pick(value, 'email')) || null,
     dateOfBirth: toStringValue(pick(value, 'dateOfBirth', 'date_of_birth')) || null,
-    status: toStringValue(pick(value, 'status'), 'ACTIVE').toUpperCase() === 'INACTIVE'
-      ? 'INACTIVE'
-      : 'ACTIVE',
+    status,
     schoolLevel,
     schoolId: toStringValue(pick(value, 'schoolId', 'school_id')) || null,
     addressId: toStringValue(pick(value, 'addressId', 'address_id')) || null,
@@ -725,6 +733,12 @@ const normalizeStudent = (value: unknown): Student => {
     ) || null,
     assignedCounselorName: toStringValue(
       pick(value, 'assignedCounselorName', 'assigned_counselor_name'),
+    ) || null,
+    assignmentStatus: toStringValue(
+      pick(value, 'assignmentStatus', 'assignment_status'),
+    ) || null,
+    assignmentEndedAt: toStringValue(
+      pick(value, 'assignmentEndedAt', 'assignment_ended_at'),
     ) || null,
     createdAt: toStringValue(pick(value, 'createdAt', 'created_at')),
     updatedAt: toStringValue(pick(value, 'updatedAt', 'updated_at')) || null,
@@ -1415,6 +1429,8 @@ export const createStudent = async (
       addressId: null,
       assignedCounselorId: session.user.roleCode === 'counselor' ? session.user.id : null,
       assignedCounselorName: session.user.roleCode === 'counselor' ? session.user.name : null,
+      assignmentStatus: session.user.roleCode === 'counselor' ? 'ACTIVE' : null,
+      assignmentEndedAt: null,
       createdAt: new Date().toISOString(),
       updatedAt: null,
     };

@@ -266,7 +266,7 @@ const createPeriodMetrics = (period: DemoPeriodSeed): CounselorPeriodMetrics => 
     maxDailyHours: period.maxDailyHours ?? 8,
     overLimitDays: period.overLimitDays ?? 0,
     weeksWithoutRest: period.weeksWithoutRest ?? 0,
-    note: 'Dữ liệu HR demo được hiển thị riêng và không ảnh hưởng đến 4 KPI hiệu suất hoặc điều kiện an toàn tải ca.',
+    note: 'Mỗi ca tư vấn tối đa 1 giờ. Các ca vượt giới hạn sẽ được ghi nhận riêng.',
   },
   kpis: createOfficialKpis(period),
 });
