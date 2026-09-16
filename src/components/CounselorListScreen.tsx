@@ -59,6 +59,7 @@ export const CounselorListScreen: React.FC<CounselorListScreenProps> = ({
       q === '' ||
       c.name.toLowerCase().includes(q) ||
       c.id.toLowerCase().includes(q) ||
+      c.externalId?.toLowerCase().includes(q) ||
       c.department.toLowerCase().includes(q);
 
     return matchesFilter && matchesSearch;
@@ -311,7 +312,7 @@ export const CounselorListScreen: React.FC<CounselorListScreenProps> = ({
                       {/* Counselor ID */}
                       <td className="py-3.5 px-4 font-mono font-bold text-slate-700">
                         <span className="px-2 py-1 bg-slate-100 rounded text-slate-800 border border-slate-200">
-                          {c.id}
+                          {c.externalId ?? c.id}
                         </span>
                       </td>
 

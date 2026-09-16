@@ -99,6 +99,7 @@ export interface CounselorPeriodMetrics {
 
 export interface Counselor {
   id: string; // e.g. "CO-101"
+  externalId?: string | null; // e.g. "TTV-01" from Google Sheets
   name: string;
   title: string;
   department: string;
@@ -144,6 +145,7 @@ export type SchoolLevel = 'THCS' | 'THPT';
 
 export interface Student {
   id: string;
+  externalId?: string | null; // e.g. "HS-01" from Google Sheets
   firstName: string;
   lastName: string;
   name: string;

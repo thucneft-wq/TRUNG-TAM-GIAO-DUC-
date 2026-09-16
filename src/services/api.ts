@@ -624,6 +624,9 @@ const normalizeCounselor = (
 
   const counselor: Counselor = {
     id,
+    externalId: toStringValue(
+      pick(value, 'externalId', 'externalCounselorId', 'external_counselor_id'),
+    ) || null,
     name,
     title: localizeProfileLabel(pick(value, 'title', 'jobTitle', 'job_title'), 'Tư vấn viên'),
     department: localizeProfileLabel(pick(value, 'department', 'unit'), 'Dịch vụ tham vấn'),
@@ -717,6 +720,9 @@ const normalizeStudent = (value: unknown): Student => {
       : 'ACTIVE';
   return {
     id,
+    externalId: toStringValue(
+      pick(value, 'externalId', 'externalStudentId', 'external_student_id'),
+    ) || null,
     firstName,
     lastName,
     name: toStringValue(pick(value, 'name', 'fullName', 'full_name'), `${firstName} ${lastName}`),

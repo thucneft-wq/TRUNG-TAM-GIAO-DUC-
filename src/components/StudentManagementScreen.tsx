@@ -252,7 +252,9 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                   <tr key={student.id} className="text-slate-700 hover:bg-slate-50/70">
                     <td className="px-5 py-4">
                       <div className="font-bold text-slate-900">{student.name}</div>
-                      <div className="mt-0.5 font-mono text-2xs text-slate-400">{student.id}</div>
+                      <div className="mt-0.5 font-mono text-2xs text-slate-400">
+                        {student.externalId ?? student.id}
+                      </div>
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-slate-400" />{student.phoneNumber}</div>

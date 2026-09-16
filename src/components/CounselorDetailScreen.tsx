@@ -160,10 +160,10 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
             title={`Trước: ${prevCounselor.name}`}
           >
             <ChevronLeft className="w-4 h-4" />
-            <span className="hidden md:inline">{prevCounselor.id}</span>
+            <span className="hidden md:inline">{prevCounselor.externalId ?? prevCounselor.id}</span>
           </button>
           <span className="text-2xs font-mono font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded">
-            {counselor.id} ({currentIndex + 1}/{allCounselors.length})
+            {counselor.externalId ?? counselor.id} ({currentIndex + 1}/{allCounselors.length})
           </span>
           <button
             type="button"
@@ -171,7 +171,7 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
             className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-blue-700 hover:bg-slate-50 text-xs font-medium flex items-center gap-1 shadow-xs"
             title={`Tiếp theo: ${nextCounselor.name}`}
           >
-            <span className="hidden md:inline">{nextCounselor.id}</span>
+            <span className="hidden md:inline">{nextCounselor.externalId ?? nextCounselor.id}</span>
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -190,7 +190,7 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded text-2xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-200">
-                  {counselor.id}
+                  {counselor.externalId ?? counselor.id}
                 </span>
                 <span className="text-2xs text-blue-700 font-semibold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
                   {counselor.title}

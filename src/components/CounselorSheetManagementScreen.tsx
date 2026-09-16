@@ -23,7 +23,13 @@ export const CounselorSheetManagementScreen: React.FC<CounselorSheetManagementSc
     const normalized = query.trim().toLowerCase();
     if (!normalized) return counselors;
     return counselors.filter((counselor) =>
-      [counselor.name, counselor.email, counselor.phoneNumber, counselor.id]
+      [
+        counselor.name,
+        counselor.email,
+        counselor.phoneNumber,
+        counselor.externalId,
+        counselor.id,
+      ]
         .some((value) => String(value ?? '').toLowerCase().includes(normalized)),
     );
   }, [counselors, query]);
@@ -113,7 +119,7 @@ export const CounselorSheetManagementScreen: React.FC<CounselorSheetManagementSc
 
                 return (
                   <tr key={counselor.id} className="hover:bg-blue-50/40">
-                    <td className="px-4 py-3"><div className="font-bold text-slate-900">{counselor.name}</div><div className="mt-0.5 font-mono text-2xs text-slate-400">{counselor.id}</div></td>
+                    <td className="px-4 py-3"><div className="font-bold text-slate-900">{counselor.name}</div><div className="mt-0.5 font-mono text-2xs text-slate-400">{counselor.externalId ?? counselor.id}</div></td>
                     <td className="px-4 py-3 text-slate-700">{counselor.email || '—'}</td>
                     <td className="px-4 py-3 text-slate-700">{counselor.phoneNumber || '—'}</td>
                     <td className="px-4 py-3"><div className="font-semibold text-slate-800">{counselor.role || 'Counselor'}</div><div className="mt-0.5 text-slate-500">{counselor.specialization || '—'}</div></td>
