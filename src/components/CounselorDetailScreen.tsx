@@ -84,7 +84,15 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
   const failedKpis = evaluation.failedKpiCount;
   const isOverallPass = evaluation.overallStatus === 'Pass';
   const isInsufficientData = evaluation.overallStatus === 'Insufficient Data';
-  const hrCompliance = timeMetrics.hrCompliance ?? counselor.hrCompliance;
+  const hrCompliance = timeMetrics?.hrCompliance ?? counselor.hrCompliance ?? {
+    status: 'No Data' as const,
+    registeredWorkdays: 0,
+    registeredHours: 0,
+    maxDailyHours: 0,
+    overLimitDays: 0,
+    weeksWithoutRest: 0,
+    note: 'Chấm công HR được theo dõi riêng và không ảnh hưởng đến 4 KPI hiệu suất hoặc điều kiện an toàn tải ca.',
+  };
 
   // Next / Previous counselor switcher
   const currentIndex = allCounselors.findIndex((c) => c.id === counselor.id);
