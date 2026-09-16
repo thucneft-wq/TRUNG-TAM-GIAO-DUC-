@@ -312,7 +312,7 @@ export const CounselorListScreen: React.FC<CounselorListScreenProps> = ({
                       {/* Counselor ID */}
                       <td className="py-3.5 px-4 font-mono font-bold text-slate-700">
                         <span className="px-2 py-1 bg-slate-100 rounded text-slate-800 border border-slate-200">
-                          {c.externalId ?? c.id}
+                          {c.externalId ?? 'Chưa có mã'}
                         </span>
                       </td>
 

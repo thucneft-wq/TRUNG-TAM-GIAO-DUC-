@@ -482,7 +482,7 @@ export default function App() {
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         onLogout={handleLogout}
-        selectedCounselorId={selectedCounselor?.externalId ?? selectedCounselor?.id}
+        selectedCounselorId={selectedCounselor?.externalId}
         dataSource={dataSource}
         isDataLoading={isPageLoading}
         roleCode={session.user.roleCode ?? 'admin'}

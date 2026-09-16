@@ -288,7 +288,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-2xs font-mono font-bold text-slate-500 bg-white border border-slate-200 px-1.5 py-0.5 rounded">
-                      {c.externalId ?? c.id}
+                      {c.externalId ?? 'Chưa có mã'}
                     </span>
                     <span
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold ${

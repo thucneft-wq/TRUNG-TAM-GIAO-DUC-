@@ -253,7 +253,7 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                     <td className="px-5 py-4">
                       <div className="font-bold text-slate-900">{student.name}</div>
                       <div className="mt-0.5 font-mono text-2xs text-slate-400">
-                        {student.externalId ?? student.id}
+                        {student.externalId ?? 'Chưa có mã'}
                       </div>
                     </td>
                     <td className="px-4 py-4">
