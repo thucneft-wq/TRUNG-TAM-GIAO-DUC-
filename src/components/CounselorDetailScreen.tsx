@@ -501,10 +501,6 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
         <p className="text-2xs leading-relaxed text-slate-500">
           {hrCompliance.note}
         </p>
-
-        <p className="text-2xs leading-relaxed text-slate-500">
-          Mỗi ca tư vấn tối đa 1 giờ. Các ca vượt giới hạn sẽ được ghi nhận riêng.
-        </p>
       </div>
 
       {/* Section 2: Relationship Summary */}
