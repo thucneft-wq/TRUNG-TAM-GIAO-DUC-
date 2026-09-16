@@ -47,6 +47,24 @@ export const Navbar: React.FC<NavbarProps> = ({
     .join('')
     .toUpperCase();
 
+  const formattedLastUpdated = (() => {
+    if (!lastUpdated) return '';
+    try {
+      const date = new Date(lastUpdated);
+      if (Number.isNaN(date.getTime())) return lastUpdated;
+      return date.toLocaleString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+    } catch {
+      return lastUpdated;
+    }
+  })();
+
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-slate-200 shadow-xs">
       <div className="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
@@ -70,7 +88,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 Phân tích Bản sao số
               </span>
               <span
-                title={`Cập nhật lần cuối: ${lastUpdated}`}
+                title={formattedLastUpdated ? `Cập nhật lần cuối: ${formattedLastUpdated}` : undefined}
                 className={`hidden sm:inline-flex items-center gap-1 text-2xs font-medium px-2 py-0.5 rounded border ${
                   dataSource === 'api'
                     ? 'text-emerald-700 bg-emerald-50 border-emerald-200'

@@ -47,11 +47,29 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   const getTimeLabel = () => {
     switch (timeRange) {
       case 'this-month':
-        return 'Tháng này (Kỳ hiện tại)';
+        return 'Tháng này';
       case 'last-month':
-        return 'Tháng trước (Kỳ trước)';
+        return 'Tháng trước';
       case 'all-time':
-        return 'Toàn thời gian (Lũy kế)';
+        return 'Toàn thời gian';
+    }
+  };
+
+  const formatLastUpdated = (value: string) => {
+    if (!value) return 'Vừa xong';
+    try {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return date.toLocaleString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+    } catch {
+      return value;
     }
   };
 
@@ -89,13 +107,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           <div className="bg-white/10 backdrop-blur-md rounded-xl p-3.5 border border-white/15 shrink-0 flex flex-col justify-center text-xs">
             <div className="flex items-center gap-1.5 text-teal-300 font-semibold text-2xs uppercase tracking-wider">
               <Clock className="w-3.5 h-3.5" />
-              Lần làm mới dữ liệu gần nhất
+              Cập nhật gần nhất
             </div>
             <div className="font-mono text-white font-medium mt-0.5">
-              {metrics.lastUpdated}
+              {formatLastUpdated(metrics.lastUpdated)}
             </div>
             <div className="text-2xs text-slate-300 mt-1 flex items-center justify-between gap-3">
-              <span>Thời gian: <strong>{getTimeLabel()}</strong></span>
+              <span>Kỳ báo cáo: <strong>{getTimeLabel()}</strong></span>
             </div>
           </div>
         </div>
