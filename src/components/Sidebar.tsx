@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   Users2,
   FileCheck2,
-  ShieldCheck,
   HeartPulse,
   LogOut,
   ChevronRight,
@@ -11,7 +10,6 @@ import {
   TrendingUp,
   MessageSquareHeart,
   FileClock,
-  LoaderCircle,
   X,
   GraduationCap,
   Network,
@@ -313,49 +311,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </>
               )}
             </nav>
-          </div>
-
-          {/* Analytics data source status */}
-          <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-2xs font-bold uppercase tracking-wider text-teal-300 flex items-center gap-1.5">
-                {isDataLoading ? (
-                  <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Activity className="w-3.5 h-3.5" />
-                )}
-                Nguồn dữ liệu phân tích
-              </span>
-              <span className={`text-2xs font-mono px-1.5 py-0.5 rounded border ${
-                dataSource === 'api'
-                  ? 'text-emerald-400 bg-emerald-950/80 border-emerald-800'
-                  : 'text-amber-300 bg-amber-950/60 border-amber-800'
-              }`}>
-                {isDataLoading ? 'Đang tải' : dataSource === 'api' ? 'API' : 'Demo'}
-              </span>
-            </div>
-            <p className="text-2xs text-slate-400 leading-relaxed">
-              {crudDemoMode
-                ? 'Dữ liệu quản trị, hồ sơ tư vấn viên và đánh giá 5 KPI theo kỳ báo cáo đã chọn.'
-                : isAdmin
-                ? 'Dữ liệu tư vấn viên, lịch hẹn và 5 KPI đã được chuẩn hóa theo kỳ báo cáo đã chọn.'
-                : 'Phiên đăng nhập không hợp lệ cho cổng quản trị.'}
-            </p>
-            <div className="pt-2 border-t border-slate-700/60 flex items-center justify-between text-2xs text-slate-400 font-mono">
-              <span>Nguồn: {dataSource === 'api' ? 'API hệ thống' : 'Demo cục bộ'}</span>
-              <span>Quy tắc: 3/4 KPI + an toàn</span>
-            </div>
-          </div>
-
-          {/* Privacy & Confidentiality Notice */}
-          <div className="p-3.5 rounded-xl bg-blue-950/40 border border-blue-800/40 text-2xs text-blue-200/90 flex items-start gap-2.5">
-            <ShieldCheck className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
-            <div>
-              <div className="font-bold text-blue-100 mb-0.5">Đang bảo vệ quyền riêng tư</div>
-              <p className="text-slate-300 leading-tight">
-                Mã học sinh, lịch sử ca và ghi chú trắc nghiệm tâm lý đều được ẩn danh và bảo vệ nghiêm ngặt.
-              </p>
-            </div>
           </div>
         </div>
 
