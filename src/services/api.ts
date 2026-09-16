@@ -56,7 +56,7 @@ export const DEMO_ACCOUNTS = [
 ] as const;
 
 const DEFAULT_PRODUCTION_API_BASE_URL =
-  'https://trung-tam-giao-duc-backend-xi.vercel.app/api';
+  'https://trung-tam-giao-duc-backend.vercel.app/api';
 const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL
   ?? (import.meta.env.PROD ? DEFAULT_PRODUCTION_API_BASE_URL : '')
