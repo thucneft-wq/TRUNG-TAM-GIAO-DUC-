@@ -58,11 +58,11 @@ export const DEMO_ACCOUNTS = [
 const DEFAULT_PRODUCTION_API_BASE_URL =
   'https://trung-tam-giao-duc-backend.vercel.app/api';
 const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/$/, '');
-const isLegacyProductionApiUrl = configuredApiBaseUrl.includes(
-  'trung-tam-giao-duc-backend-xi.vercel.app',
-);
+const shouldUseCanonicalProductionApiUrl =
+  configuredApiBaseUrl.includes('trung-tam-giao-duc-backend-xi.vercel.app')
+  || configuredApiBaseUrl === 'https://trung-tam-giao-duc-backend.vercel.app';
 const API_BASE_URL = (
-  import.meta.env.PROD && isLegacyProductionApiUrl
+  import.meta.env.PROD && shouldUseCanonicalProductionApiUrl
     ? DEFAULT_PRODUCTION_API_BASE_URL
     : configuredApiBaseUrl || (import.meta.env.PROD ? DEFAULT_PRODUCTION_API_BASE_URL : '')
 ).replace(/\/$/, '');
