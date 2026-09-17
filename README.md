@@ -49,9 +49,10 @@ When `VITE_API_BASE_URL` is configured, these actions use the separate
 
 The customer-facing release is read-only: direct Student and Counselor CRUD is locked
 in the UI. Student maintenance opens the separate THCS and THPT tabs configured by
-`VITE_GOOGLE_STUDENT_THCS_ENTRY_URL` and `VITE_GOOGLE_STUDENT_THPT_ENTRY_URL`.
-Counselor maintenance opens `VITE_GOOGLE_COUNSELOR_ENTRY_URL`. The legacy
-`VITE_GOOGLE_STUDENT_ENTRY_URL` remains a fallback for both student tabs.
+`VITE_GOOGLE_STUDENT_THCS_SHEET_URL` and `VITE_GOOGLE_STUDENT_THPT_SHEET_URL`.
+These are the normalized `students_THCS` and `students_THPT` management tabs, not the
+raw Google Form response tabs. Counselor maintenance opens
+`VITE_GOOGLE_COUNSELOR_ENTRY_URL`.
 
 Student deletion is handled from the two Google Sheet tabs, not from the Web. Each tab
 has a `Trạng thái` dropdown: `Đang hoạt động` keeps the Student visible, while

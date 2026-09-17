@@ -121,11 +121,13 @@ export const isWebCrudEnabled = false;
 export const googleStudentEntryUrl = (
   import.meta.env.VITE_GOOGLE_STUDENT_ENTRY_URL ?? import.meta.env.VITE_GOOGLE_STUDENT_FORM_URL ?? ''
 ).trim();
+const defaultStudentThcsSheetUrl = 'https://docs.google.com/spreadsheets/d/1VFfQsEoNPE_WCP1SHYMFsN2n-Y4V4_RVvt77Iv305Bg/edit?gid=1158513315#gid=1158513315';
+const defaultStudentThptSheetUrl = 'https://docs.google.com/spreadsheets/d/1VFfQsEoNPE_WCP1SHYMFsN2n-Y4V4_RVvt77Iv305Bg/edit?gid=1783407659#gid=1783407659';
 export const googleStudentThcsEntryUrl = (
-  import.meta.env.VITE_GOOGLE_STUDENT_THCS_ENTRY_URL ?? googleStudentEntryUrl
+  import.meta.env.VITE_GOOGLE_STUDENT_THCS_SHEET_URL ?? defaultStudentThcsSheetUrl
 ).trim();
 export const googleStudentThptEntryUrl = (
-  import.meta.env.VITE_GOOGLE_STUDENT_THPT_ENTRY_URL ?? googleStudentEntryUrl
+  import.meta.env.VITE_GOOGLE_STUDENT_THPT_SHEET_URL ?? defaultStudentThptSheetUrl
 ).trim();
 export const googleCounselorEntryUrl = (
   import.meta.env.VITE_GOOGLE_COUNSELOR_ENTRY_URL ?? googleStudentEntryUrl
