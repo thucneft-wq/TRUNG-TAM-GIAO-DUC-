@@ -147,10 +147,10 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
               </button>
             ) : (
               <>
-                <button type="button" onClick={() => openSheet('thcs')} title="Mở thẳng cột SĐT và email phụ huynh" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-blue-800 shadow-sm hover:bg-blue-50">
+                <button type="button" onClick={() => openSheet('thcs')} title="Mở tab quản lý học sinh cùng cột SĐT và email phụ huynh" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-blue-800 shadow-sm hover:bg-blue-50">
                   <ExternalLink className="h-4 w-4" /> Mở Sheet THCS
                 </button>
-                <button type="button" onClick={() => openSheet('thpt')} title="Mở thẳng cột SĐT và email phụ huynh" className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-200 px-4 py-2.5 text-xs font-bold text-blue-950 shadow-sm hover:bg-cyan-100">
+                <button type="button" onClick={() => openSheet('thpt')} title="Mở tab quản lý học sinh cùng cột SĐT và email phụ huynh" className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-200 px-4 py-2.5 text-xs font-bold text-blue-950 shadow-sm hover:bg-cyan-100">
                   <ExternalLink className="h-4 w-4" /> Mở Sheet THPT
                 </button>
               </>
