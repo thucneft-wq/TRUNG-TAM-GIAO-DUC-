@@ -249,7 +249,7 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                   <th className="px-4 py-3">Ngày sinh</th>
                   <th className="px-4 py-3">Trạng thái</th>
                   <th className="px-4 py-3">Tư vấn viên</th>
-                  <th className="px-5 py-3 text-right">Cập nhật</th>
+                  {webCrudEnabled && <th className="px-5 py-3 text-right">Cập nhật</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -297,33 +297,18 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                         <div className="mt-1 text-2xs text-slate-400">Phân công đã kết thúc</div>
                       )}
                     </td>
-                    <td className="px-5 py-4">
-                      <div className="flex justify-end gap-2">
-                        {webCrudEnabled ? (
-                          <>
+                    {webCrudEnabled && (
+                      <td className="px-5 py-4">
+                        <div className="flex justify-end gap-2">
                           <button type="button" onClick={() => setEditing(student)} className="rounded-lg border border-slate-300 p-2 text-slate-600 hover:bg-blue-50 hover:text-blue-700" aria-label={`Sửa ${student.name}`}>
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button type="button" disabled={busyId === student.id} onClick={() => void handleDelete(student)} className="rounded-lg border border-rose-200 p-2 text-rose-600 hover:bg-rose-50 disabled:opacity-50" aria-label={`Xóa ${student.name}`}>
                             <Trash2 className="h-4 w-4" />
                           </button>
-                          </>
-                        ) : (
-                          <div className="flex justify-end gap-1.5">
-                            {student.schoolLevel ? (
-                              <button type="button" onClick={() => openSheet(student.schoolLevel!.toLowerCase() as 'thcs' | 'thpt')} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-2 font-bold text-blue-700 hover:bg-blue-100" aria-label={`Sửa liên hệ phụ huynh của ${student.name}`}>
-                                <ExternalLink className="h-3.5 w-3.5" /> Sửa liên hệ PH
-                              </button>
-                            ) : (
-                              <>
-                                <button type="button" onClick={() => openSheet('thcs')} className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-2 font-bold text-blue-700 hover:bg-blue-100">THCS</button>
-                                <button type="button" onClick={() => openSheet('thpt')} className="rounded-lg border border-cyan-200 bg-cyan-50 px-2.5 py-2 font-bold text-cyan-800 hover:bg-cyan-100">THPT</button>
-                              </>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </td>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
