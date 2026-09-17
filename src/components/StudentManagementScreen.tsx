@@ -13,11 +13,10 @@ import {
   ExternalLink,
   RefreshCw,
 } from 'lucide-react';
-import type { Counselor, CreateStudentInput, Student } from '../types';
+import type { CreateStudentInput, Student } from '../types';
 
 interface StudentManagementScreenProps {
   students: Student[];
-  counselors: Counselor[];
   isAdmin: boolean;
   onCreate: (input: CreateStudentInput) => Promise<void>;
   onUpdate: (id: string, input: Partial<CreateStudentInput>) => Promise<void>;
@@ -34,7 +33,6 @@ interface StudentManagementScreenProps {
 
 export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = ({
   students,
-  counselors,
   isAdmin,
   onCreate,
   onUpdate,
@@ -73,7 +71,13 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
         : student.schoolLevel === levelFilter;
       if (!matchesLevel) return false;
       if (!keyword) return true;
-      return [student.name, student.email ?? '', student.phoneNumber]
+      return [
+        student.name,
+        student.email ?? '',
+        student.phoneNumber,
+        student.parentEmail ?? '',
+        student.parentPhoneNumber ?? '',
+      ]
         .some((value) => value.toLocaleLowerCase('vi-VN').includes(keyword));
     });
   }, [levelFilter, query, statusFilter, students]);
@@ -209,7 +213,7 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                 onChange={(event) => setStatusFilter(event.target.value as 'ALL' | Student['status'])}
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
               >
-                <option value="ACTIVE">Đang tư vấn</option>
+                <option value="ACTIVE">Đang hoạt động</option>
                 <option value="COMPLETED">Đã hoàn thành</option>
                 <option value="INACTIVE">Ngừng theo dõi</option>
                 <option value="ALL">Tất cả trạng thái</option>
@@ -236,11 +240,12 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[920px] text-left text-xs">
+            <table className="w-full min-w-[1080px] text-left text-xs">
               <thead className="bg-slate-50 text-2xs uppercase tracking-wider text-slate-500">
                 <tr>
                   <th className="px-5 py-3">Student</th>
                   <th className="px-4 py-3">Liên hệ</th>
+                  <th className="px-4 py-3">Liên hệ phụ huynh</th>
                   <th className="px-4 py-3">Ngày sinh</th>
                   <th className="px-4 py-3">Trạng thái</th>
                   <th className="px-4 py-3">Tư vấn viên</th>
@@ -260,6 +265,16 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                       <div className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-slate-400" />{student.phoneNumber}</div>
                       <div className="mt-1 flex items-center gap-1.5 text-slate-500"><Mail className="h-3.5 w-3.5" />{student.email ?? 'Chưa có email'}</div>
                     </td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-1.5">
+                        <Phone className="h-3.5 w-3.5 text-slate-400" />
+                        {student.parentPhoneNumber ?? 'Chưa có SĐT'}
+                      </div>
+                      <div className="mt-1 flex items-center gap-1.5 text-slate-500">
+                        <Mail className="h-3.5 w-3.5" />
+                        {student.parentEmail ?? 'Chưa có email'}
+                      </div>
+                    </td>
                     <td className="px-4 py-4">{student.dateOfBirth ?? '—'}</td>
                     <td className="px-4 py-4">
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-2xs font-bold ${
@@ -270,7 +285,7 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                             : 'bg-slate-200 text-slate-700'
                       }`}>
                         {student.status === 'ACTIVE'
-                          ? 'Đang tư vấn'
+                          ? student.assignedCounselorId ? 'Đang tư vấn' : 'Chờ chọn lịch'
                           : student.status === 'COMPLETED'
                             ? 'Đã hoàn thành'
                             : 'Ngừng theo dõi'}
@@ -320,8 +335,6 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
       {webCrudEnabled && (isCreating || editing) && (
         <StudentFormModal
           student={editing}
-          counselors={counselors}
-          isAdmin={isAdmin}
           onClose={() => { setIsCreating(false); setEditing(null); }}
           onSave={async (input) => {
             if (editing) await onUpdate(editing.id, input);
@@ -337,14 +350,10 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
 
 const StudentFormModal = ({
   student,
-  counselors,
-  isAdmin,
   onClose,
   onSave,
 }: {
   student: Student | null;
-  counselors: Counselor[];
-  isAdmin: boolean;
   onClose: () => void;
   onSave: (input: CreateStudentInput) => Promise<void>;
 }) => {
@@ -354,10 +363,11 @@ const StudentFormModal = ({
     gender: student?.gender ?? '',
     phoneNumber: student?.phoneNumber ?? '',
     email: student?.email ?? '',
+    parentPhoneNumber: student?.parentPhoneNumber ?? '',
+    parentEmail: student?.parentEmail ?? '',
     dateOfBirth: student?.dateOfBirth ?? '',
     status: student?.status ?? 'ACTIVE',
     schoolLevel: student?.schoolLevel ?? null,
-    counselorId: student?.assignedCounselorId ?? '',
   });
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -371,8 +381,9 @@ const StudentFormModal = ({
         ...form,
         gender: form.gender || null,
         email: form.email || null,
+        parentPhoneNumber: form.parentPhoneNumber || null,
+        parentEmail: form.parentEmail || null,
         dateOfBirth: form.dateOfBirth || null,
-        counselorId: !student && isAdmin ? form.counselorId || null : undefined,
       });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Không thể lưu Student.');
@@ -394,10 +405,11 @@ const StudentFormModal = ({
           <Field label="Họ" required><input required value={form.lastName} onChange={(event) => setForm({ ...form, lastName: event.target.value })} className={inputClass} /></Field>
           <Field label="Số điện thoại" required><input required value={form.phoneNumber} onChange={(event) => setForm({ ...form, phoneNumber: event.target.value })} className={inputClass} /></Field>
           <Field label="Email"><input type="email" value={form.email ?? ''} onChange={(event) => setForm({ ...form, email: event.target.value })} className={inputClass} /></Field>
+          <Field label="SĐT phụ huynh"><input value={form.parentPhoneNumber ?? ''} onChange={(event) => setForm({ ...form, parentPhoneNumber: event.target.value })} className={inputClass} /></Field>
+          <Field label="Email phụ huynh"><input type="email" value={form.parentEmail ?? ''} onChange={(event) => setForm({ ...form, parentEmail: event.target.value })} className={inputClass} /></Field>
           <Field label="Ngày sinh"><input type="date" value={form.dateOfBirth ?? ''} onChange={(event) => setForm({ ...form, dateOfBirth: event.target.value })} className={inputClass} /></Field>
           <Field label="Giới tính"><select value={form.gender ?? ''} onChange={(event) => setForm({ ...form, gender: event.target.value })} className={inputClass}><option value="">Chưa xác định</option><option value="MALE">Nam</option><option value="FEMALE">Nữ</option><option value="OTHER">Khác</option></select></Field>
           <Field label="Cấp học"><select value={form.schoolLevel ?? ''} onChange={(event) => setForm({ ...form, schoolLevel: (event.target.value || null) as CreateStudentInput['schoolLevel'] })} className={inputClass}><option value="">Chưa xác định</option><option value="THCS">THCS</option><option value="THPT">THPT</option></select></Field>
-          {!student && isAdmin && <Field label="Phân công tư vấn viên"><select value={form.counselorId ?? ''} onChange={(event) => setForm({ ...form, counselorId: event.target.value })} className={inputClass}><option value="">Chưa phân công</option>{counselors.map((counselor) => <option key={counselor.id} value={counselor.id}>{counselor.name}</option>)}</select></Field>}
         </div>
         <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 p-4">
           <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100">Hủy</button>

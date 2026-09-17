@@ -152,6 +152,8 @@ export interface Student {
   gender: string | null;
   phoneNumber: string;
   email: string | null;
+  parentPhoneNumber: string | null;
+  parentEmail: string | null;
   dateOfBirth: string | null;
   status: StudentStatus;
   schoolLevel: SchoolLevel | null;
@@ -171,6 +173,8 @@ export interface CreateStudentInput {
   gender?: string | null;
   phoneNumber: string;
   email?: string | null;
+  parentPhoneNumber?: string | null;
+  parentEmail?: string | null;
   dateOfBirth?: string | null;
   status: StudentStatus;
   schoolLevel?: SchoolLevel | null;
