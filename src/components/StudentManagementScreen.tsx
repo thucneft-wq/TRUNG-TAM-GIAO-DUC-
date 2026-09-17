@@ -147,10 +147,10 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
               </button>
             ) : (
               <>
-                <button type="button" onClick={() => openSheet('thcs')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-blue-800 shadow-sm hover:bg-blue-50">
+                <button type="button" onClick={() => openSheet('thcs')} title="Mở thẳng cột SĐT và email phụ huynh" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-blue-800 shadow-sm hover:bg-blue-50">
                   <ExternalLink className="h-4 w-4" /> Mở Sheet THCS
                 </button>
-                <button type="button" onClick={() => openSheet('thpt')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-200 px-4 py-2.5 text-xs font-bold text-blue-950 shadow-sm hover:bg-cyan-100">
+                <button type="button" onClick={() => openSheet('thpt')} title="Mở thẳng cột SĐT và email phụ huynh" className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-200 px-4 py-2.5 text-xs font-bold text-blue-950 shadow-sm hover:bg-cyan-100">
                   <ExternalLink className="h-4 w-4" /> Mở Sheet THPT
                 </button>
               </>
@@ -311,8 +311,8 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                         ) : (
                           <div className="flex justify-end gap-1.5">
                             {student.schoolLevel ? (
-                              <button type="button" onClick={() => openSheet(student.schoolLevel!.toLowerCase() as 'thcs' | 'thpt')} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-2 font-bold text-blue-700 hover:bg-blue-100" aria-label={`Mở Sheet ${student.schoolLevel} cập nhật ${student.name}`}>
-                                <ExternalLink className="h-3.5 w-3.5" /> Mở Sheet {student.schoolLevel}
+                              <button type="button" onClick={() => openSheet(student.schoolLevel!.toLowerCase() as 'thcs' | 'thpt')} className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-2 font-bold text-blue-700 hover:bg-blue-100" aria-label={`Sửa liên hệ phụ huynh của ${student.name}`}>
+                                <ExternalLink className="h-3.5 w-3.5" /> Sửa liên hệ PH
                               </button>
                             ) : (
                               <>

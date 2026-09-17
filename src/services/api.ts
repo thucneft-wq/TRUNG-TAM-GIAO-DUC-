@@ -121,15 +121,35 @@ export const isWebCrudEnabled = false;
 export const googleStudentEntryUrl = (
   import.meta.env.VITE_GOOGLE_STUDENT_ENTRY_URL ?? import.meta.env.VITE_GOOGLE_STUDENT_FORM_URL ?? ''
 ).trim();
-const defaultStudentThcsSheetUrl = 'https://docs.google.com/spreadsheets/d/1VFfQsEoNPE_WCP1SHYMFsN2n-Y4V4_RVvt77Iv305Bg/edit?gid=1158513315#gid=1158513315';
-const defaultStudentThptSheetUrl = 'https://docs.google.com/spreadsheets/d/1VFfQsEoNPE_WCP1SHYMFsN2n-Y4V4_RVvt77Iv305Bg/edit?gid=1783407659#gid=1783407659';
+const defaultStudentThcsSheetUrl = 'https://docs.google.com/spreadsheets/d/1VFfQsEoNPE_WCP1SHYMFsN2n-Y4V4_RVvt77Iv305Bg/edit?gid=1361399049#gid=1361399049&range=P:Q';
+const defaultStudentThptSheetUrl = 'https://docs.google.com/spreadsheets/d/1VFfQsEoNPE_WCP1SHYMFsN2n-Y4V4_RVvt77Iv305Bg/edit?gid=618108581#gid=618108581&range=P:Q';
 const defaultCounselorSheetUrl = 'https://docs.google.com/spreadsheets/d/1VFfQsEoNPE_WCP1SHYMFsN2n-Y4V4_RVvt77Iv305Bg/edit?gid=1153632058#gid=1153632058';
-export const googleStudentThcsEntryUrl = (
-  import.meta.env.VITE_GOOGLE_STUDENT_THCS_SHEET_URL ?? defaultStudentThcsSheetUrl
-).trim();
-export const googleStudentThptEntryUrl = (
-  import.meta.env.VITE_GOOGLE_STUDENT_THPT_SHEET_URL ?? defaultStudentThptSheetUrl
-).trim();
+
+const normalizeStudentSheetUrl = (
+  configuredUrl: string | undefined,
+  fallbackUrl: string,
+  legacyGid: string,
+  sourceGid: string,
+): string => {
+  const rawUrl = (configuredUrl ?? fallbackUrl).trim() || fallbackUrl;
+  const sourceUrl = rawUrl.split(`gid=${legacyGid}`).join(`gid=${sourceGid}`);
+  return /(?:^|[&#])range=/i.test(sourceUrl)
+    ? sourceUrl
+    : `${sourceUrl}${sourceUrl.includes('#') ? '&' : '#'}range=P:Q`;
+};
+
+export const googleStudentThcsEntryUrl = normalizeStudentSheetUrl(
+  import.meta.env.VITE_GOOGLE_STUDENT_THCS_SHEET_URL,
+  defaultStudentThcsSheetUrl,
+  '1158513315',
+  '1361399049',
+);
+export const googleStudentThptEntryUrl = normalizeStudentSheetUrl(
+  import.meta.env.VITE_GOOGLE_STUDENT_THPT_SHEET_URL,
+  defaultStudentThptSheetUrl,
+  '1783407659',
+  '618108581',
+);
 const configuredCounselorEntryUrl = (
   import.meta.env.VITE_GOOGLE_COUNSELOR_ENTRY_URL ?? googleStudentEntryUrl
 ).trim();
