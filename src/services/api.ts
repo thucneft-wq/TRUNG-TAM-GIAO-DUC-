@@ -121,8 +121,8 @@ export const isWebCrudEnabled = false;
 export const googleStudentEntryUrl = (
   import.meta.env.VITE_GOOGLE_STUDENT_ENTRY_URL ?? import.meta.env.VITE_GOOGLE_STUDENT_FORM_URL ?? ''
 ).trim();
-const defaultStudentThcsSheetUrl = 'https://docs.google.com/spreadsheets/d/1VFfQsEoNPE_WCP1SHYMFsN2n-Y4V4_RVvt77Iv305Bg/edit?gid=1158513315#gid=1158513315&range=O:P';
-const defaultStudentThptSheetUrl = 'https://docs.google.com/spreadsheets/d/1VFfQsEoNPE_WCP1SHYMFsN2n-Y4V4_RVvt77Iv305Bg/edit?gid=1783407659#gid=1783407659&range=O:P';
+const defaultStudentThcsSheetUrl = 'https://docs.google.com/spreadsheets/d/1VFfQsEoNPE_WCP1SHYMFsN2n-Y4V4_RVvt77Iv305Bg/edit?gid=1158513315#gid=1158513315&range=A1';
+const defaultStudentThptSheetUrl = 'https://docs.google.com/spreadsheets/d/1VFfQsEoNPE_WCP1SHYMFsN2n-Y4V4_RVvt77Iv305Bg/edit?gid=1783407659#gid=1783407659&range=A1';
 const defaultCounselorSheetUrl = 'https://docs.google.com/spreadsheets/d/1VFfQsEoNPE_WCP1SHYMFsN2n-Y4V4_RVvt77Iv305Bg/edit?gid=1153632058#gid=1153632058';
 
 const normalizeStudentSheetUrl = (
@@ -134,8 +134,8 @@ const normalizeStudentSheetUrl = (
   const rawUrl = (configuredUrl ?? fallbackUrl).trim() || fallbackUrl;
   const managementUrl = rawUrl.split(`gid=${sourceGid}`).join(`gid=${managementGid}`);
   return /(?:^|[&#])range=/i.test(managementUrl)
-    ? managementUrl.replace(/([&#])range=[^&#]*/i, '$1range=O:P')
-    : `${managementUrl}${managementUrl.includes('#') ? '&' : '#'}range=O:P`;
+    ? managementUrl.replace(/([&#])range=[^&#]*/i, '$1range=A1')
+    : `${managementUrl}${managementUrl.includes('#') ? '&' : '#'}range=A1`;
 };
 
 export const googleStudentThcsEntryUrl = normalizeStudentSheetUrl(
