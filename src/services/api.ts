@@ -123,15 +123,21 @@ export const googleStudentEntryUrl = (
 ).trim();
 const defaultStudentThcsSheetUrl = 'https://docs.google.com/spreadsheets/d/1VFfQsEoNPE_WCP1SHYMFsN2n-Y4V4_RVvt77Iv305Bg/edit?gid=1158513315#gid=1158513315';
 const defaultStudentThptSheetUrl = 'https://docs.google.com/spreadsheets/d/1VFfQsEoNPE_WCP1SHYMFsN2n-Y4V4_RVvt77Iv305Bg/edit?gid=1783407659#gid=1783407659';
+const defaultCounselorSheetUrl = 'https://docs.google.com/spreadsheets/d/1VFfQsEoNPE_WCP1SHYMFsN2n-Y4V4_RVvt77Iv305Bg/edit?gid=1153632058#gid=1153632058';
 export const googleStudentThcsEntryUrl = (
   import.meta.env.VITE_GOOGLE_STUDENT_THCS_SHEET_URL ?? defaultStudentThcsSheetUrl
 ).trim();
 export const googleStudentThptEntryUrl = (
   import.meta.env.VITE_GOOGLE_STUDENT_THPT_SHEET_URL ?? defaultStudentThptSheetUrl
 ).trim();
-export const googleCounselorEntryUrl = (
+const configuredCounselorEntryUrl = (
   import.meta.env.VITE_GOOGLE_COUNSELOR_ENTRY_URL ?? googleStudentEntryUrl
 ).trim();
+// Older deployments pointed this button at the raw counselor application form.
+// Route that known legacy URL to the approved counselor management tab instead.
+export const googleCounselorEntryUrl = configuredCounselorEntryUrl.includes('gid=1832606455')
+  ? defaultCounselorSheetUrl
+  : configuredCounselorEntryUrl || defaultCounselorSheetUrl;
 const parsedStudentSyncInterval = Number(import.meta.env.VITE_STUDENT_SYNC_INTERVAL_MS ?? '10000');
 export const studentSyncIntervalMs = Number.isFinite(parsedStudentSyncInterval) && parsedStudentSyncInterval >= 3000
   ? parsedStudentSyncInterval
