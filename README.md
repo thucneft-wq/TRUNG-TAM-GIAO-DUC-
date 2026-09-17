@@ -99,23 +99,15 @@ pass while caseload is between 1 and 20 weighted cases per FTE. Zero caseload or
 than three evaluable performance KPIs produces `Insufficient Data`; caseload above 20
 produces `Not Pass`.
 
-## Knowledge Graph integration placeholder
+## Knowledge Graph integration
 
-The Admin-only `Knowledge Graph` screen is ready for the future graph module. Its stable
-mount element is `#knowledge-graph-viewport`, implemented in
-`src/components/KnowledgeGraphScreen.tsx`.
+The Admin-only `Knowledge Graph` screen embeds the deployed graph viewer configured by
+`VITE_KNOWLEDGE_GRAPH_URL`. If this variable is omitted, the frontend uses the production
+viewer at `https://knowledge-graph-psychological.onrender.com/graph-viewer`.
 
-When the graph component is available, pass it through `graphContent` and set the status:
-
-```tsx
-<KnowledgeGraphScreen
-  graphContent={<TeamKnowledgeGraph />}
-  status="ready"
-/>
-```
-
-Keep authorization and sensitive-data masking in the API. The placeholder intentionally
-does not render fake graph data.
+The screen also supports a future native React graph through the optional `graphContent`
+prop. Authorization and sensitive-data masking must still be enforced by the Knowledge
+Graph service because hiding the navigation entry is not an API security boundary.
 
 ## Verification
 

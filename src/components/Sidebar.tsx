@@ -164,8 +164,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {currentScreen === 'knowledge-graph' ? (
                     <ChevronRight className="h-3.5 w-3.5 text-blue-200" />
                   ) : (
-                    <span className="rounded border border-teal-700/70 bg-teal-950/70 px-1.5 py-0.5 text-2xs font-bold text-teal-300">
-                      Sắp có
+                    <span className="rounded border border-emerald-700/70 bg-emerald-950/70 px-1.5 py-0.5 text-2xs font-bold text-emerald-300">
+                      Đã kết nối
                     </span>
                   )}
                 </button>

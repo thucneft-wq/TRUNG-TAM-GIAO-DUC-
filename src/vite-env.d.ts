@@ -22,6 +22,7 @@ interface ImportMetaEnv {
   readonly VITE_GOOGLE_COUNSELOR_ENTRY_URL?: string;
   readonly VITE_STUDENT_SYNC_INTERVAL_MS?: string;
   readonly VITE_API_TIMEOUT_MS?: string;
+  readonly VITE_KNOWLEDGE_GRAPH_URL?: string;
 }
 
 interface ImportMeta {
