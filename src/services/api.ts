@@ -81,6 +81,8 @@ const ANALYTICS_EXPORT_ENDPOINT =
   import.meta.env.VITE_ANALYTICS_EXPORT_ENDPOINT ?? '/admin/analytics/export';
 const AUDIT_LOGS_ENDPOINT = import.meta.env.VITE_AUDIT_LOGS_ENDPOINT ?? '/admin/audit-logs';
 const STUDENTS_ENDPOINT = import.meta.env.VITE_STUDENTS_ENDPOINT ?? '/students';
+const SHEET_MIRROR_ENDPOINT =
+  import.meta.env.VITE_SHEET_MIRROR_ENDPOINT ?? '/admin/sheet-mirror/:table';
 const parsedTimeout = Number(import.meta.env.VITE_API_TIMEOUT_MS ?? '10000');
 const API_TIMEOUT_MS = Number.isFinite(parsedTimeout) && parsedTimeout > 0 ? parsedTimeout : 10000;
 const SESSION_STORAGE_KEY = 'digital-twin-admin-session';
@@ -169,6 +171,21 @@ export const analyticsSyncIntervalMs = Number.isFinite(parsedAnalyticsSyncInterv
 
 const localizeCounselorName = (name: string): string =>
   name.replace(/^Demo Counselor\s+([A-Z])$/i, 'Tư vấn viên mẫu $1');
+
+const normalizeCounselorStatus = (value: unknown): Counselor['status'] => {
+  const status = toStringValue(value, 'ACTIVE').trim().toLowerCase();
+  if (
+    status === 'inactive'
+    || status.includes('ngừng')
+    || status.includes('ngung')
+    || status.includes('không hoạt động')
+    || status.includes('khong hoat dong')
+  ) return 'INACTIVE';
+  if (status === 'on_leave' || status.includes('nghỉ') || status.includes('nghi')) {
+    return 'ON_LEAVE';
+  }
+  return 'ACTIVE';
+};
 
 const withEditableProfile = (counselor: Counselor): Counselor => {
   const name = localizeCounselorName(counselor.name);
@@ -663,6 +680,7 @@ const normalizeCounselor = (
     id,
     externalId: toStringValue(
       pick(value, 'externalId', 'externalCounselorId', 'external_counselor_id'),
+      id,
     ) || null,
     name,
     title: localizeProfileLabel(pick(value, 'title', 'jobTitle', 'job_title'), 'Tư vấn viên'),
@@ -675,7 +693,7 @@ const normalizeCounselor = (
     dateOfBirth: toStringValue(pick(value, 'dateOfBirth', 'date_of_birth')) || null,
     role: localizeProfileLabel(pick(value, 'role')) || null,
     specialization: localizeProfileLabel(pick(value, 'specialization')) || null,
-    status: (toStringValue(pick(value, 'status'), 'ACTIVE').toUpperCase() as Counselor['status']),
+    status: normalizeCounselorStatus(pick(value, 'status')),
     fteRatio: toNumberValue(pick(value, 'fteRatio', 'fte_ratio'), 1),
     avatarColor: toStringValue(
       pick(value, 'avatarColor', 'avatar_color'),
@@ -731,6 +749,7 @@ const normalizeStudent = (value: unknown): Student => {
   }
   const schoolValue = pick(value, 'school');
   const schoolRecord = isRecord(schoolValue) ? schoolValue : {};
+  const gradeLevel = toNumberValue(pick(value, 'gradeLevel', 'grade_level'), Number.NaN);
   const rawSchoolLevel = toStringValue(
     pick(
       value,
@@ -748,17 +767,26 @@ const normalizeStudent = (value: unknown): Student => {
     ? 'THCS'
     : rawSchoolLevel.includes('THPT')
       ? 'THPT'
-      : null;
-  const rawStudentStatus = toStringValue(pick(value, 'status'), 'ACTIVE').toUpperCase();
-  const status: Student['status'] = rawStudentStatus === 'COMPLETED'
+      : Number.isFinite(gradeLevel)
+        ? gradeLevel <= 9 ? 'THCS' : 'THPT'
+        : null;
+  const rawStudentStatus = toStringValue(pick(value, 'status'), 'ACTIVE').trim().toLowerCase();
+  const status: Student['status'] = rawStudentStatus === 'completed'
+    || rawStudentStatus.includes('hoàn thành')
+    || rawStudentStatus.includes('hoan thanh')
     ? 'COMPLETED'
-    : rawStudentStatus === 'INACTIVE'
+    : rawStudentStatus === 'inactive'
+      || rawStudentStatus.includes('ngừng')
+      || rawStudentStatus.includes('ngung')
+      || rawStudentStatus.includes('không hoạt động')
+      || rawStudentStatus.includes('khong hoat dong')
       ? 'INACTIVE'
       : 'ACTIVE';
   return {
     id,
     externalId: toStringValue(
       pick(value, 'externalId', 'externalStudentId', 'external_student_id'),
+      id,
     ) || null,
     firstName,
     lastName,
@@ -1048,6 +1076,188 @@ const requestJson = async (
 const authorizationHeaders = (session: AuthSession): HeadersInit =>
   session.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {};
 
+type SheetMirrorTable =
+  | 'students'
+  | 'counselors'
+  | 'parents'
+  | 'student_parents'
+  | 'counselor_assignments';
+
+const loadSheetMirrorRows = async (
+  session: AuthSession,
+  table: SheetMirrorTable,
+): Promise<JsonRecord[]> => {
+  const endpoint = SHEET_MIRROR_ENDPOINT.replace(':table', encodeURIComponent(table));
+  const rows: JsonRecord[] = [];
+  const pageSize = 500;
+
+  for (let page = 1; page <= 100; page += 1) {
+    const payload = await requestJson(
+      endpoint,
+      { headers: authorizationHeaders(session), cache: 'no-store' },
+      { page: String(page), pageSize: String(pageSize) },
+    );
+    if (!isRecord(payload) || payload.ok !== true || !Array.isArray(payload.data)) {
+      throw new ApiError(`Sheet ${table} không trả về danh sách hợp lệ.`);
+    }
+
+    const pageRows = payload.data.filter(isRecord);
+    rows.push(...pageRows);
+    const total = toNumberValue(payload.total, rows.length);
+    if (pageRows.length === 0 || rows.length >= total) break;
+  }
+
+  return rows;
+};
+
+const normalizedRecordId = (value: unknown): string =>
+  toStringValue(value).trim().toLowerCase();
+
+const isInactiveSheetValue = (value: unknown): boolean => {
+  const status = toStringValue(value).trim().toLowerCase();
+  return status === 'inactive'
+    || status.includes('ngừng')
+    || status.includes('ngung')
+    || status.includes('không hoạt động')
+    || status.includes('khong hoat dong');
+};
+
+const mergeCounselorProfiles = (
+  sheetRows: JsonRecord[],
+  apiCounselors: Counselor[],
+  period: TimeRange,
+): Counselor[] => {
+  const apiById = new Map<string, Counselor>();
+  apiCounselors.forEach((counselor) => {
+    [counselor.id, counselor.externalId].forEach((id) => {
+      const key = normalizedRecordId(id);
+      if (key) apiById.set(key, counselor);
+    });
+  });
+
+  return sheetRows
+    .map((row, index) => normalizeCounselor(row, index, period))
+    .filter((profile) => profile.status !== 'INACTIVE')
+    .map((profile) => {
+      const metrics = apiById.get(normalizedRecordId(profile.id))
+        ?? apiById.get(normalizedRecordId(profile.externalId));
+      if (!metrics) return profile;
+      return enforceCounselorKpiPolicy({
+        ...metrics,
+        id: profile.id,
+        externalId: profile.externalId,
+        name: profile.name,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        gender: profile.gender,
+        phoneNumber: profile.phoneNumber,
+        email: profile.email,
+        dateOfBirth: profile.dateOfBirth,
+        role: profile.role,
+        specialization: profile.specialization,
+        status: profile.status,
+        fteRatio: profile.fteRatio,
+        title: profile.title,
+        department: profile.department,
+      });
+    });
+};
+
+const loadSheetCounselors = async (
+  session: AuthSession,
+  period: TimeRange,
+): Promise<Counselor[]> => {
+  const sheetRows = await loadSheetMirrorRows(session, 'counselors');
+  let apiCounselors: Counselor[] = [];
+  try {
+    const apiPayload = await requestJson(
+      COUNSELORS_ENDPOINT,
+      { headers: authorizationHeaders(session) },
+      { period: API_PERIOD_BY_TIME_RANGE[period] },
+    );
+    apiCounselors = extractCounselorArray(apiPayload).map((value, index) =>
+      normalizeCounselor(value, index, period),
+    );
+  } catch {
+    // The Sheet remains authoritative for visible profiles even if KPI enrichment is unavailable.
+  }
+  return mergeCounselorProfiles(sheetRows, apiCounselors, period);
+};
+
+const enrichSheetStudentRows = (
+  studentRows: JsonRecord[],
+  counselorRows: JsonRecord[],
+  assignmentRows: JsonRecord[],
+  parentRows: JsonRecord[],
+  studentParentRows: JsonRecord[],
+): JsonRecord[] => {
+  const counselorNames = new Map<string, string>();
+  counselorRows.forEach((row) => {
+    const id = normalizedRecordId(pick(row, 'counselor_id', 'external_counselor_id', 'id'));
+    if (!id || isInactiveSheetValue(pick(row, 'status'))) return;
+    const firstName = toStringValue(pick(row, 'first_name', 'firstName'));
+    const lastName = toStringValue(pick(row, 'last_name', 'lastName'));
+    counselorNames.set(
+      id,
+      toStringValue(pick(row, 'name', 'full_name'), `${firstName} ${lastName}`.trim()),
+    );
+  });
+
+  const assignments = new Map<string, JsonRecord>();
+  assignmentRows.forEach((row) => {
+    if (isInactiveSheetValue(pick(row, 'status', 'assignment_status'))) return;
+    if (toStringValue(pick(row, 'ended_at', 'assignment_ended_at'))) return;
+    const studentId = normalizedRecordId(pick(row, 'student_id', 'external_student_id'));
+    if (studentId) assignments.set(studentId, row);
+  });
+
+  const parents = new Map<string, JsonRecord>();
+  parentRows.forEach((row) => {
+    const id = normalizedRecordId(pick(row, 'parent_id', 'id'));
+    if (id && !isInactiveSheetValue(pick(row, 'status'))) parents.set(id, row);
+  });
+
+  const parentByStudent = new Map<string, JsonRecord>();
+  studentParentRows.forEach((link) => {
+    if (isInactiveSheetValue(pick(link, 'status'))) return;
+    const studentId = normalizedRecordId(pick(link, 'student_id', 'external_student_id'));
+    const parentId = normalizedRecordId(pick(link, 'parent_id'));
+    const parent = parents.get(parentId);
+    if (studentId && parent) parentByStudent.set(studentId, parent);
+  });
+
+  return studentRows.map((row) => {
+    const studentId = normalizedRecordId(pick(row, 'student_id', 'external_student_id', 'id'));
+    const assignment = assignments.get(studentId);
+    const counselorId = toStringValue(
+      pick(assignment ?? {}, 'counselor_id', 'external_counselor_id'),
+      toStringValue(pick(row, 'assigned_counselor_id')),
+    );
+    const parent = parentByStudent.get(studentId);
+    return {
+      ...row,
+      assigned_counselor_id: counselorId || null,
+      assigned_counselor_name: counselorNames.get(normalizedRecordId(counselorId))
+        ?? toStringValue(pick(row, 'assigned_counselor_name'))
+        ?? null,
+      assignment_status: assignment
+        ? toStringValue(pick(assignment, 'status', 'assignment_status'), 'ACTIVE')
+        : pick(row, 'assignment_status') ?? null,
+      assignment_ended_at: assignment
+        ? pick(assignment, 'ended_at', 'assignment_ended_at') ?? null
+        : pick(row, 'assignment_ended_at') ?? null,
+      parent_phone_number: toStringValue(
+        pick(row, 'parent_phone_number'),
+        toStringValue(pick(parent ?? {}, 'phone_number', 'phoneNumber')),
+      ) || null,
+      parent_email: toStringValue(
+        pick(row, 'parent_email'),
+        toStringValue(pick(parent ?? {}, 'email')),
+      ) || null,
+    };
+  });
+};
+
 export const loginAdmin = async (credentials: LoginCredentials): Promise<AuthSession> => {
   if (!isRemoteApiConfigured) {
     const account = DEMO_ACCOUNTS.find(
@@ -1114,12 +1324,7 @@ export const loadAdminData = async (
     };
   }
 
-  const counselorsPayload = await requestJson(COUNSELORS_ENDPOINT, {
-    headers: authorizationHeaders(session),
-  }, { period: API_PERIOD_BY_TIME_RANGE[timeRange] });
-  const counselors = extractCounselorArray(counselorsPayload).map((value, index) =>
-    normalizeCounselor(value, index, timeRange),
-  );
+  const counselors = await loadSheetCounselors(session, timeRange);
 
   try {
     const dashboardPayload = await requestJson(
@@ -1316,13 +1521,12 @@ export const loadCounselorDetail = async (
     return counselor;
   }
 
-  const endpoint = COUNSELOR_DETAIL_ENDPOINT.replace(':id', encodeURIComponent(counselorId));
-  const payload = await requestJson(
-    endpoint,
-    { headers: authorizationHeaders(session) },
-    { period: API_PERIOD_BY_TIME_RANGE[period] },
-  );
-  return normalizeCounselor(extractCounselorRecord(payload), 0, period);
+  const counselors = await loadSheetCounselors(session, period);
+  const counselor = counselors.find((item) =>
+    normalizedRecordId(item.id) === normalizedRecordId(counselorId)
+    || normalizedRecordId(item.externalId) === normalizedRecordId(counselorId));
+  if (!counselor) throw new ApiError('Không tìm thấy tư vấn viên trên Sheet.', 404);
+  return counselor;
 };
 
 export const createCounselor = async (
@@ -1452,10 +1656,20 @@ export const loadStudents = async (session: AuthSession): Promise<Student[]> => 
   if (!isRemoteApiConfigured || session.source === 'mock') {
     return getMockStudents().filter((student) => student.status === 'ACTIVE');
   }
-  const payload = await requestJson(STUDENTS_ENDPOINT, {
-    headers: authorizationHeaders(session),
-  });
-  return extractStudentArray(payload);
+  const [students, counselors, assignments, parents, studentParents] = await Promise.all([
+    loadSheetMirrorRows(session, 'students'),
+    loadSheetMirrorRows(session, 'counselors'),
+    loadSheetMirrorRows(session, 'counselor_assignments'),
+    loadSheetMirrorRows(session, 'parents'),
+    loadSheetMirrorRows(session, 'student_parents'),
+  ]);
+  return enrichSheetStudentRows(
+    students,
+    counselors,
+    assignments,
+    parents,
+    studentParents,
+  ).map(normalizeStudent).filter((student) => student.status !== 'INACTIVE');
 };
 
 export const createStudent = async (

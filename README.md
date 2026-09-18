@@ -30,6 +30,7 @@ Copy `.env.example` to `.env.local`, then set `VITE_API_BASE_URL`. The frontend 
 - `GET /admin/analytics/feedback?period=this_month`
 - `GET /admin/analytics/export?type=overview&period=this_month` (CSV)
 - `GET /admin/audit-logs` (Admin only)
+- `GET /admin/sheet-mirror/:table` (Admin only; read-only Sheet mirror)
 - `GET /students`
 - `POST /students`
 - `PATCH /students/:id`
@@ -84,10 +85,12 @@ navigation without deleting those features. Counselor accounts land on Student m
 Admin can switch between Student and Counselor management. The three level-specific
 Google Sheet variables above control the external Sheet buttons.
 
-Student, Counselor and dashboard data automatically refresh at
-`VITE_STUDENT_SYNC_INTERVAL_MS` intervals after Apps Script pushes Sheet rows to the
-Backend webhooks. This near-real-time refresh is active in both the full Admin portal
-and Customer CRUD demo mode. It does not enable editing on the Web.
+Student and Counselor profiles are read from the protected Sheet mirror endpoint and
+automatically refresh at `VITE_STUDENT_SYNC_INTERVAL_MS` intervals. Parent contacts and
+active Counselor assignments are joined from the related mirrored tabs in the browser;
+the Apps Script API key remains only on the Backend. Dashboard and KPI aggregates continue
+to use the Backend database endpoints. This near-real-time refresh does not enable editing
+on the Web.
 
 ## KPI rule
 

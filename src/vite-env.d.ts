@@ -12,6 +12,7 @@ interface ImportMetaEnv {
   readonly VITE_ANALYTICS_EXPORT_ENDPOINT?: string;
   readonly VITE_AUDIT_LOGS_ENDPOINT?: string;
   readonly VITE_STUDENTS_ENDPOINT?: string;
+  readonly VITE_SHEET_MIRROR_ENDPOINT?: string;
   readonly VITE_CRUD_DEMO_MODE?: string;
   readonly VITE_GOOGLE_STUDENT_FORM_URL?: string;
   readonly VITE_GOOGLE_STUDENT_ENTRY_URL?: string;
