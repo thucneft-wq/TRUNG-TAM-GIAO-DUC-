@@ -160,10 +160,10 @@ const configuredCounselorEntryUrl = (
 export const googleCounselorEntryUrl = configuredCounselorEntryUrl.includes('gid=1832606455')
   ? defaultCounselorSheetUrl
   : configuredCounselorEntryUrl || defaultCounselorSheetUrl;
-const parsedStudentSyncInterval = Number(import.meta.env.VITE_STUDENT_SYNC_INTERVAL_MS ?? '30000');
+const parsedStudentSyncInterval = Number(import.meta.env.VITE_STUDENT_SYNC_INTERVAL_MS ?? '60000');
 export const studentSyncIntervalMs = Number.isFinite(parsedStudentSyncInterval)
-  ? Math.max(parsedStudentSyncInterval, 30000)
-  : 30000;
+  ? Math.max(parsedStudentSyncInterval, 60000)
+  : 60000;
 const parsedAnalyticsSyncInterval = Number(import.meta.env.VITE_ANALYTICS_SYNC_INTERVAL_MS ?? '15000');
 export const analyticsSyncIntervalMs = Number.isFinite(parsedAnalyticsSyncInterval) && parsedAnalyticsSyncInterval >= 5000
   ? parsedAnalyticsSyncInterval
@@ -1084,32 +1084,53 @@ type SheetMirrorTable =
   | 'student_parents'
   | 'counselor_assignments';
 
+const sheetMirrorRowsCache = new Map<
+  SheetMirrorTable,
+  { expiresAt: number; request: Promise<JsonRecord[]> }
+>();
+
 const loadSheetMirrorRows = async (
   session: AuthSession,
   table: SheetMirrorTable,
 ): Promise<JsonRecord[]> => {
-  const endpoint = SHEET_MIRROR_ENDPOINT.replace(':table', encodeURIComponent(table));
-  const rows: JsonRecord[] = [];
-  const pageSize = 500;
+  const cached = sheetMirrorRowsCache.get(table);
+  if (cached && cached.expiresAt > Date.now()) return cached.request;
 
-  for (let page = 1; page <= 100; page += 1) {
-    const payload = await requestJson(
-      endpoint,
-      { headers: authorizationHeaders(session), cache: 'no-store' },
-      { page: String(page), pageSize: String(pageSize) },
-      30000,
-    );
-    if (!isRecord(payload) || payload.ok !== true || !Array.isArray(payload.data)) {
-      throw new ApiError(`Sheet ${table} không trả về danh sách hợp lệ.`);
+  const request = (async (): Promise<JsonRecord[]> => {
+    const endpoint = SHEET_MIRROR_ENDPOINT.replace(':table', encodeURIComponent(table));
+    const rows: JsonRecord[] = [];
+    const pageSize = 500;
+
+    for (let page = 1; page <= 100; page += 1) {
+      const payload = await requestJson(
+        endpoint,
+        { headers: authorizationHeaders(session), cache: 'no-store' },
+        { page: String(page), pageSize: String(pageSize) },
+        60000,
+      );
+      if (!isRecord(payload) || payload.ok !== true || !Array.isArray(payload.data)) {
+        throw new ApiError(`Sheet ${table} không trả về danh sách hợp lệ.`);
+      }
+
+      const pageRows = payload.data.filter(isRecord);
+      rows.push(...pageRows);
+      const total = toNumberValue(payload.total, rows.length);
+      if (pageRows.length === 0 || rows.length >= total) break;
     }
 
-    const pageRows = payload.data.filter(isRecord);
-    rows.push(...pageRows);
-    const total = toNumberValue(payload.total, rows.length);
-    if (pageRows.length === 0 || rows.length >= total) break;
-  }
+    return rows;
+  })();
 
-  return rows;
+  const cacheEntry = { expiresAt: Number.POSITIVE_INFINITY, request };
+  sheetMirrorRowsCache.set(table, cacheEntry);
+  try {
+    const rows = await request;
+    cacheEntry.expiresAt = Date.now() + 20000;
+    return rows;
+  } catch (error) {
+    sheetMirrorRowsCache.delete(table);
+    throw error;
+  }
 };
 
 const normalizedRecordId = (value: unknown): string =>
@@ -1658,19 +1679,17 @@ export const loadStudents = async (session: AuthSession): Promise<Student[]> => 
   if (!isRemoteApiConfigured || session.source === 'mock') {
     return getMockStudents().filter((student) => student.status === 'ACTIVE');
   }
-  const [students, counselors, assignments, parents, studentParents] = await Promise.all([
+  const [students, counselors, assignments] = await Promise.all([
     loadSheetMirrorRows(session, 'students'),
     loadSheetMirrorRows(session, 'counselors'),
     loadSheetMirrorRows(session, 'counselor_assignments'),
-    loadSheetMirrorRows(session, 'parents'),
-    loadSheetMirrorRows(session, 'student_parents'),
   ]);
   return enrichSheetStudentRows(
     students,
     counselors,
     assignments,
-    parents,
-    studentParents,
+    [],
+    [],
   ).map(normalizeStudent).filter((student) => student.status !== 'INACTIVE');
 };
 
