@@ -160,10 +160,10 @@ const configuredCounselorEntryUrl = (
 export const googleCounselorEntryUrl = configuredCounselorEntryUrl.includes('gid=1832606455')
   ? defaultCounselorSheetUrl
   : configuredCounselorEntryUrl || defaultCounselorSheetUrl;
-const parsedStudentSyncInterval = Number(import.meta.env.VITE_STUDENT_SYNC_INTERVAL_MS ?? '10000');
-export const studentSyncIntervalMs = Number.isFinite(parsedStudentSyncInterval) && parsedStudentSyncInterval >= 3000
-  ? parsedStudentSyncInterval
-  : 10000;
+const parsedStudentSyncInterval = Number(import.meta.env.VITE_STUDENT_SYNC_INTERVAL_MS ?? '30000');
+export const studentSyncIntervalMs = Number.isFinite(parsedStudentSyncInterval)
+  ? Math.max(parsedStudentSyncInterval, 30000)
+  : 30000;
 const parsedAnalyticsSyncInterval = Number(import.meta.env.VITE_ANALYTICS_SYNC_INTERVAL_MS ?? '15000');
 export const analyticsSyncIntervalMs = Number.isFinite(parsedAnalyticsSyncInterval) && parsedAnalyticsSyncInterval >= 5000
   ? parsedAnalyticsSyncInterval
@@ -1026,9 +1026,10 @@ const requestJson = async (
   endpoint: string,
   options: RequestInit = {},
   query?: Record<string, string>,
+  timeoutMs = API_TIMEOUT_MS,
 ): Promise<unknown> => {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(buildUrl(endpoint, query), {
@@ -1065,7 +1066,7 @@ const requestJson = async (
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new ApiError(`Yêu cầu API đã quá thời gian chờ ${API_TIMEOUT_MS} mili giây.`);
+      throw new ApiError(`Yêu cầu API đã quá thời gian chờ ${timeoutMs} mili giây.`);
     }
     throw new ApiError('Không thể kết nối đến API. Vui lòng kiểm tra máy chủ và kết nối mạng.');
   } finally {
@@ -1096,6 +1097,7 @@ const loadSheetMirrorRows = async (
       endpoint,
       { headers: authorizationHeaders(session), cache: 'no-store' },
       { page: String(page), pageSize: String(pageSize) },
+      30000,
     );
     if (!isRecord(payload) || payload.ok !== true || !Array.isArray(payload.data)) {
       throw new ApiError(`Sheet ${table} không trả về danh sách hợp lệ.`);
