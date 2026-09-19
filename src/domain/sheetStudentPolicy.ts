@@ -63,6 +63,20 @@ export const enrichSheetStudentRows = (
   parentRows: SheetRecord[],
   studentParentRows: SheetRecord[],
 ): SheetRecord[] => {
+  const rowsWithCounselors = enrichSheetStudentCounselors(
+    studentRows,
+    counselorRows,
+    assignmentRows,
+  );
+
+  return enrichSheetStudentParents(rowsWithCounselors, parentRows, studentParentRows);
+};
+
+export const enrichSheetStudentCounselors = (
+  studentRows: SheetRecord[],
+  counselorRows: SheetRecord[],
+  assignmentRows: SheetRecord[],
+): SheetRecord[] => {
   const counselorNames = new Map<string, string>();
   counselorRows.forEach((row) => {
     const id = normalizedRecordId(
@@ -87,6 +101,36 @@ export const enrichSheetStudentRows = (
     if (studentId) assignments.set(studentId, row);
   });
 
+  return studentRows.map((row) => {
+    const studentId = normalizedRecordId(
+      pickSheetValue(row, 'student_id', 'external_student_id', 'id'),
+    );
+    const assignment = assignments.get(studentId);
+    const counselorId = sheetText(
+      pickSheetValue(assignment ?? {}, 'counselor_id', 'external_counselor_id'),
+    ) || sheetText(pickSheetValue(row, 'assigned_counselor_id', 'assignedCounselorId'));
+
+    return {
+      ...row,
+      assigned_counselor_id: counselorId || null,
+      assigned_counselor_name: counselorNames.get(normalizedRecordId(counselorId))
+        ?? sheetText(pickSheetValue(row, 'assigned_counselor_name', 'assignedCounselorName'))
+        ?? null,
+      assignment_status: assignment
+        ? sheetText(pickSheetValue(assignment, 'status', 'assignment_status')) || 'ACTIVE'
+        : pickSheetValue(row, 'assignment_status', 'assignmentStatus') ?? null,
+      assignment_ended_at: assignment
+        ? pickSheetValue(assignment, 'ended_at', 'assignment_ended_at') ?? null
+        : pickSheetValue(row, 'assignment_ended_at', 'assignmentEndedAt') ?? null,
+    };
+  });
+};
+
+export const enrichSheetStudentParents = (
+  studentRows: SheetRecord[],
+  parentRows: SheetRecord[],
+  studentParentRows: SheetRecord[],
+): SheetRecord[] => {
   const parents = new Map<string, SheetRecord>();
   parentRows.forEach((row) => {
     const id = normalizedRecordId(pickSheetValue(row, 'parent_id', 'id'));
@@ -122,10 +166,6 @@ export const enrichSheetStudentRows = (
     const studentId = normalizedRecordId(
       pickSheetValue(row, 'student_id', 'external_student_id', 'id'),
     );
-    const assignment = assignments.get(studentId);
-    const counselorId = sheetText(
-      pickSheetValue(assignment ?? {}, 'counselor_id', 'external_counselor_id'),
-    ) || sheetText(pickSheetValue(row, 'assigned_counselor_id'));
     const selectedParent = selectedParentByStudent.get(studentId);
     const parent = selectedParent?.parent;
     const parentFirstName = sheetText(pickSheetValue(parent ?? {}, 'first_name', 'firstName'));
@@ -133,16 +173,6 @@ export const enrichSheetStudentRows = (
 
     return {
       ...row,
-      assigned_counselor_id: counselorId || null,
-      assigned_counselor_name: counselorNames.get(normalizedRecordId(counselorId))
-        ?? sheetText(pickSheetValue(row, 'assigned_counselor_name'))
-        ?? null,
-      assignment_status: assignment
-        ? sheetText(pickSheetValue(assignment, 'status', 'assignment_status')) || 'ACTIVE'
-        : pickSheetValue(row, 'assignment_status') ?? null,
-      assignment_ended_at: assignment
-        ? pickSheetValue(assignment, 'ended_at', 'assignment_ended_at') ?? null
-        : pickSheetValue(row, 'assignment_ended_at') ?? null,
       parent_id: selectedParent ? sheetText(pickSheetValue(parent ?? {}, 'parent_id', 'id')) : null,
       parent_name: selectedParent ? `${parentFirstName} ${parentLastName}`.trim() || null : null,
       parent_relationship: selectedParent

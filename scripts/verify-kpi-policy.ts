@@ -15,6 +15,8 @@ import {
   isSheetTrue,
 } from '../src/domain/sheetStudentPolicy.ts';
 import { calculateSheetOperationsSummary } from '../src/domain/sheetOperationsPolicy.ts';
+import { loadStudentSheetSources } from '../src/domain/studentLoadPolicy.ts';
+import { SharedRequestPool } from '../src/services/sharedRequestPool.ts';
 
 const definitionById = new Map(
   OFFICIAL_KPI_DEFINITIONS.map((definition) => [definition.id, definition]),
@@ -419,4 +421,70 @@ assert.deepEqual(sheetOperations.countedIds.testAttempts, [
   'LANTHI-03',
 ]);
 
-console.log('KPI, Sheet student/parent, and Sheet operations policy verification passed.');
+const resilientSources = await loadStudentSheetSources(async (table) => {
+  if (table === 'counselors') throw new Error('Counselor timeout');
+  if (table === 'students') return sheetStudents;
+  if (table === 'parents') return sheetParents;
+  if (table === 'student_parents') return sheetStudentParents;
+  return [];
+});
+assert.equal(resilientSources.counselorDataAvailable, false);
+assert.match(resilientSources.counselorWarning ?? '', /tư vấn viên/i);
+const resilientStudents = enrichSheetStudentRows(
+  resilientSources.students,
+  resilientSources.counselors,
+  resilientSources.assignments,
+  resilientSources.parents,
+  resilientSources.studentParents,
+);
+const resilientHs01 = resilientStudents.find((student) => student.student_id === 'HS-01')!;
+assert.equal(resilientHs01.parent_id, 'PH-01');
+assert.equal(resilientHs01.parent_name, 'Kim Ánh');
+
+await assert.rejects(
+  () => loadStudentSheetSources(async (table) => {
+    if (table === 'students') throw new Error('Students unavailable');
+    return [];
+  }),
+  /Students unavailable/,
+  'A required Sheet table failure must reject the student load',
+);
+
+const sharedPool = new SharedRequestPool<string, string[]>();
+let mirrorRequestCount = 0;
+let resolveSharedRequest!: (value: string[]) => void;
+const sharedFactory = () => {
+  mirrorRequestCount += 1;
+  return new Promise<string[]>((resolve) => {
+    resolveSharedRequest = resolve;
+  });
+};
+const dashboardCounselors = sharedPool.run('counselors', sharedFactory);
+const studentCounselors = sharedPool.run('counselors', sharedFactory);
+await Promise.resolve();
+assert.equal(mirrorRequestCount, 1, 'Concurrent consumers must share one mirror request');
+resolveSharedRequest(['TVV-01']);
+assert.deepEqual(await dashboardCounselors, ['TVV-01']);
+assert.deepEqual(await studentCounselors, ['TVV-01']);
+assert.equal(sharedPool.has('counselors'), false, 'Finished requests must leave the in-flight pool');
+
+const retryPool = new SharedRequestPool<string, string>();
+let abortedRequestCount = 0;
+const staleRequest = retryPool.run('counselors', (signal) => new Promise<string>((_resolve, reject) => {
+  if (signal.aborted) {
+    abortedRequestCount += 1;
+    reject(new DOMException('Retry', 'AbortError'));
+    return;
+  }
+  signal.addEventListener('abort', () => {
+    abortedRequestCount += 1;
+    reject(new DOMException('Retry', 'AbortError'));
+  }, { once: true });
+}));
+retryPool.abort('counselors');
+await assert.rejects(staleRequest, (error: unknown) =>
+  error instanceof DOMException && error.name === 'AbortError');
+assert.equal(abortedRequestCount, 1, 'Retry must abort the stale in-flight request');
+assert.equal(await retryPool.run('counselors', async () => 'fresh'), 'fresh');
+
+console.log('KPI, resilient Sheet student/parent, shared request, and operations policy verification passed.');

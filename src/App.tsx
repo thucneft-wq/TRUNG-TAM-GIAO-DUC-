@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { LoaderCircle, RefreshCw } from 'lucide-react';
 import {
@@ -36,8 +36,10 @@ import {
   googleCounselorEntryUrl,
   analyticsSyncIntervalMs,
   clearDashboardOperationsSheetMirrorCache,
+  clearStudentCounselorSheetMirrorCache,
   clearStudentSheetMirrorCache,
   loadDashboardSheetOperations,
+  reloadStudentCounselorData,
   studentSyncIntervalMs,
   restoreSession,
   saveSession,
@@ -127,6 +129,9 @@ export default function App() {
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(Boolean(session));
   const [isStudentsLoading, setIsStudentsLoading] = useState(Boolean(session));
   const [studentsError, setStudentsError] = useState<string | null>(null);
+  const [studentCounselorWarning, setStudentCounselorWarning] = useState<string | null>(null);
+  const [isStudentCounselorRetrying, setIsStudentCounselorRetrying] = useState(false);
+  const studentCounselorRetryController = useRef<AbortController | null>(null);
   const [studentsLastUpdated, setStudentsLastUpdated] = useState<string | null>(null);
   const [sheetOperations, setSheetOperations] = useState<SheetOperationsSummary | null>(null);
   const [isSheetOperationsLoading, setIsSheetOperationsLoading] = useState(Boolean(session));
@@ -255,12 +260,14 @@ export default function App() {
     const controller = new AbortController();
     setIsStudentsLoading(true);
     setStudentsError(null);
+    setStudentCounselorWarning(null);
     setStudents([]);
     setStudentsLastUpdated(null);
     loadStudents(session, controller.signal)
       .then((result) => {
         if (isCurrentRequest) {
-          setStudents(result);
+          setStudents(result.students);
+          setStudentCounselorWarning(result.counselorWarning);
           setStudentsLastUpdated(new Date().toISOString());
         }
       })
@@ -277,6 +284,10 @@ export default function App() {
       controller.abort();
     };
   }, [session, refreshKey]);
+
+  useEffect(() => () => {
+    studentCounselorRetryController.current?.abort();
+  }, []);
 
   useEffect(() => {
     if (!session) {
@@ -326,7 +337,8 @@ export default function App() {
         if (pendingRequests === 0) activeControllers.delete(controller);
       };
       loadStudents(session, controller.signal).then((result) => {
-        setStudents(result);
+        setStudents(result.students);
+        setStudentCounselorWarning(result.counselorWarning);
         setStudentsLastUpdated(new Date().toISOString());
       }).catch(() => {
         // Keep the last successful list; the next interval retries automatically.
@@ -524,10 +536,40 @@ export default function App() {
 
   const handleStudentsRefresh = () => {
     clearStudentSheetMirrorCache();
+    clearStudentCounselorSheetMirrorCache();
+    studentCounselorRetryController.current?.abort();
     setStudents([]);
     setStudentsError(null);
+    setStudentCounselorWarning(null);
     setStudentsLastUpdated(null);
     setRefreshKey((key) => key + 1);
+  };
+
+  const handleStudentCounselorRetry = async () => {
+    if (!session) return;
+    studentCounselorRetryController.current?.abort();
+    clearStudentCounselorSheetMirrorCache();
+    const controller = new AbortController();
+    studentCounselorRetryController.current = controller;
+    setIsStudentCounselorRetrying(true);
+    try {
+      const result = await reloadStudentCounselorData(session, students, controller.signal);
+      if (studentCounselorRetryController.current !== controller) return;
+      setStudents(result.students);
+      setStudentCounselorWarning(result.counselorWarning);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setStudentCounselorWarning(
+        error instanceof Error
+          ? error.message
+          : 'Thông tin phân công tư vấn viên tạm thời chưa tải được.',
+      );
+    } finally {
+      if (studentCounselorRetryController.current === controller) {
+        studentCounselorRetryController.current = null;
+        setIsStudentCounselorRetrying(false);
+      }
+    }
   };
 
   const handleSheetOperationsRefresh = () => {
@@ -713,6 +755,9 @@ export default function App() {
                     }}
                     onRefresh={handleStudentsRefresh}
                     isRefreshing={isStudentsLoading}
+                    counselorWarning={studentCounselorWarning}
+                    onRetryCounselors={() => void handleStudentCounselorRetry()}
+                    isCounselorRetrying={isStudentCounselorRetrying}
                   />
                 </motion.div>
               )}
