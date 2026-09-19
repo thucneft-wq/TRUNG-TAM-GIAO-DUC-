@@ -30,85 +30,51 @@ export const KpiCard: React.FC<KpiCardProps> = ({
     switch (variant) {
       case 'success':
         return {
-          border: 'border-emerald-200 hover:border-emerald-300',
-          iconBg: 'bg-emerald-50 text-emerald-700',
-          badge: 'bg-emerald-100 text-emerald-800',
+          icon: 'text-pine-700',
+          value: 'text-pine-700',
         };
       case 'danger':
         return {
-          border: 'border-rose-200 hover:border-rose-300',
-          iconBg: 'bg-rose-50 text-rose-700',
-          badge: 'bg-rose-100 text-rose-800',
+          icon: 'text-brick-700',
+          value: 'text-brick-700',
         };
       case 'teal':
-        return {
-          border: 'border-teal-200 hover:border-teal-300',
-          iconBg: 'bg-teal-50 text-teal-700',
-          badge: 'bg-teal-100 text-teal-800',
-        };
+        return { icon: 'text-pine-700', value: 'text-ink-950' };
       case 'blue':
-        return {
-          border: 'border-blue-200 hover:border-blue-300',
-          iconBg: 'bg-blue-50 text-blue-700',
-          badge: 'bg-blue-100 text-blue-800',
-        };
+        return { icon: 'text-academic-700', value: 'text-ink-950' };
       default:
-        return {
-          border: 'border-slate-200 hover:border-slate-300',
-          iconBg: 'bg-slate-100 text-slate-700',
-          badge: 'bg-slate-100 text-slate-700',
-        };
+        return { icon: 'text-slate-500', value: 'text-ink-950' };
     }
   };
 
   const styles = getVariantStyles();
-
-  return (
-    <div
-      id={id}
-      onClick={onClick}
-      role={onClick ? 'button' : undefined}
-      tabIndex={onClick ? 0 : undefined}
-      onKeyDown={(event) => {
-        if (onClick && (event.key === 'Enter' || event.key === ' ')) {
-          event.preventDefault();
-          onClick();
-        }
-      }}
-      className={`bg-white rounded-xl p-5 border ${styles.border} shadow-sm transition-all duration-200 ${
-        onClick
-          ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
-          : ''
-      }`}
-    >
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
-            {title}
-          </p>
-          <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-            {value}
-          </h3>
+  const className = `min-h-40 border-b border-r border-rule bg-white p-4 text-left ${
+    onClick ? 'cursor-pointer transition-colors hover:bg-teal-50/60' : ''
+  }`;
+  const content = (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium leading-5 text-slate-600">{title}</p>
+          <p className={`mt-2 font-display text-3xl font-bold tabular-nums ${styles.value}`}>{value}</p>
         </div>
-        <div className={`p-3 rounded-lg ${styles.iconBg} shrink-0`}>
-          <Icon className="w-5 h-5" />
-        </div>
+        <Icon className={`mt-0.5 size-5 shrink-0 ${styles.icon}`} aria-hidden="true" />
       </div>
 
-      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-        {subtitle && <span className="text-slate-500 font-medium">{subtitle}</span>}
+      <div className="mt-5 border-t border-rule pt-3 text-xs leading-5">
+        {subtitle && <p className="text-slate-500">{subtitle}</p>}
         {trend && (
-          <span
-            className={`font-semibold px-2 py-0.5 rounded-full ${
-              trend.isPositive
-                ? 'bg-emerald-50 text-emerald-700'
-                : 'bg-rose-50 text-rose-700'
-            }`}
-          >
-            {trend.isPositive ? '↑' : '↓'} {trend.value} {trend.label}
-          </span>
+          <p className={trend.isPositive ? 'mt-1 font-medium text-pine-700' : 'mt-1 font-medium text-brick-700'}>
+            {trend.isPositive ? 'Tăng' : 'Giảm'} {trend.value} {trend.label}
+          </p>
         )}
       </div>
-    </div>
+    </>
   );
+
+  if (onClick) {
+    return <button id={id} type="button" onClick={onClick} className={className}>{content}</button>;
+  }
+
+  return <div id={id} className={className}>{content}</div>;
 };

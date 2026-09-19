@@ -1,19 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import {
-  GraduationCap,
   Mail,
   Pencil,
   Phone,
   Plus,
   Search,
-  ShieldCheck,
   Trash2,
   UserRound,
-  X,
   ExternalLink,
   RefreshCw,
 } from 'lucide-react';
 import type { CreateStudentInput, Student } from '../types';
+import { cn } from '../lib/cn';
+import { Alert, Button, IconButton, ModalSurface, Select, TabButton, TextInput } from './ui/Primitives';
 
 interface StudentManagementScreenProps {
   students: Student[];
@@ -30,6 +29,19 @@ interface StudentManagementScreenProps {
   onRefresh: () => void;
   isRefreshing: boolean;
 }
+
+const getStudentStatusPresentation = (student: Student) => ({
+  className: student.status === 'ACTIVE'
+    ? 'bg-teal-50 text-academic-800 ring-1 ring-inset ring-teal-200'
+    : student.status === 'COMPLETED'
+      ? 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200'
+      : 'bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200',
+  label: student.status === 'ACTIVE'
+    ? student.assignedCounselorId ? 'Đang tư vấn' : 'Chờ chọn lịch'
+    : student.status === 'COMPLETED'
+      ? 'Đã hoàn thành'
+      : 'Ngừng theo dõi',
+});
 
 export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = ({
   students,
@@ -87,6 +99,16 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
     [students],
   );
 
+  const primarySheetLevel = levelFilter === 'THPT' ? 'thpt' : 'thcs';
+  const secondarySheetLevel = primarySheetLevel === 'thcs' ? 'thpt' : 'thcs';
+  const pageDescription = isAdmin
+    ? webCrudEnabled
+      ? 'Quản lý thông tin, trạng thái và liên hệ của học sinh trong hệ thống.'
+      : crudDemoMode
+        ? 'Dữ liệu được đồng bộ từ Google Sheet và tự làm mới định kỳ trên web.'
+        : 'Dữ liệu chỉ đọc trên web; mọi thay đổi được thực hiện trên Google Sheet.'
+    : 'Danh sách học sinh đang được phân công cho tài khoản tư vấn viên này.';
+
   const openSheet = (level: 'thcs' | 'thpt') => {
     const url = googleEntryUrls[level];
     if (!url) {
@@ -98,233 +120,273 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
   };
 
   const handleDelete = async (student: Student) => {
-    if (!window.confirm(`Vô hiệu hóa Student “${student.name}”? Dữ liệu lịch sử sẽ được giữ lại.`)) return;
+    if (!window.confirm(`Ngừng theo dõi học sinh “${student.name}”? Dữ liệu lịch sử sẽ được giữ lại.`)) return;
     setBusyId(student.id);
     setError(null);
     try {
       await onDeactivate(student.id);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Không thể vô hiệu hóa Student.');
+      setError(caught instanceof Error ? caught.message : 'Không thể ngừng theo dõi học sinh.');
     } finally {
       setBusyId(null);
     }
   };
 
-  return (
-    <div className="space-y-6">
-      <section className="rounded-2xl bg-gradient-to-r from-sky-950 via-blue-900 to-indigo-900 p-6 text-white shadow-lg">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="rounded-xl bg-white/10 p-2.5"><GraduationCap className="h-6 w-6" /></div>
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-sky-200">Student Management</p>
-              <h2 className="mt-1 text-xl font-bold">Quản lý hồ sơ Student</h2>
-              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-blue-100">
-                {isAdmin
-                  ? webCrudEnabled
-                    ? 'Admin có thể quản lý toàn bộ Student trực tiếp trong hệ thống.'
-                    : 'Admin chỉ xem dữ liệu trên web; mọi thay đổi được thực hiện trên Google Sheet.'
-                  : 'Bạn chỉ thấy Student đang được phân công cho tài khoản Counselor này.'}
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={onRefresh}
-              disabled={isRefreshing}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 px-4 py-2.5 text-xs font-bold text-white hover:bg-white/20 disabled:opacity-60"
-            >
-              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} /> Làm mới
-            </button>
-            {webCrudEnabled ? (
-              <button
-                type="button"
-                onClick={() => setIsCreating(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-blue-800 shadow-sm hover:bg-blue-50"
-              >
-                <Plus className="h-4 w-4" /> Thêm Student
-              </button>
-            ) : (
-              <>
-                <button type="button" onClick={() => openSheet('thcs')} title="Mở tab quản lý học sinh cùng cột SĐT và email phụ huynh" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-blue-800 shadow-sm hover:bg-blue-50">
-                  <ExternalLink className="h-4 w-4" /> Mở Sheet THCS
-                </button>
-                <button type="button" onClick={() => openSheet('thpt')} title="Mở tab quản lý học sinh cùng cột SĐT và email phụ huynh" className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-200 px-4 py-2.5 text-xs font-bold text-blue-950 shadow-sm hover:bg-cyan-100">
-                  <ExternalLink className="h-4 w-4" /> Mở Sheet THPT
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </section>
+  const handleRetry = () => {
+    setError(null);
+    onRefresh();
+  };
 
-      <div className="flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
-        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
-        <span>{webCrudEnabled
-          ? 'Thao tác xóa là soft delete: hồ sơ chuyển sang INACTIVE, không xóa lịch sử liên quan.'
-          : 'Gói hiện tại khóa CRUD trực tiếp trên web. Dữ liệu học sinh được quản lý ở hai tab Google Sheet riêng: THCS và THPT.'}</span>
-      </div>
+  const handleEmptyAction = () => {
+    if (query || statusFilter !== 'ACTIVE') {
+      setQuery('');
+      setStatusFilter('ACTIVE');
+      return;
+    }
+    if (webCrudEnabled) {
+      setIsCreating(true);
+      return;
+    }
+    openSheet(primarySheetLevel);
+  };
 
-      {!webCrudEnabled && crudDemoMode && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
-          Dữ liệu cập nhật trên Google Sheet được hệ thống của đội dự án đồng bộ; danh sách trên web chỉ đọc và tự làm mới định kỳ.
-        </div>
+  const renderStudentActions = (student: Student) => (
+    <div className="flex flex-wrap justify-end gap-2">
+      {webCrudEnabled ? (
+        <>
+          <IconButton onClick={() => setEditing(student)} className="size-10 border-rule" aria-label={`Sửa ${student.name}`}>
+            <Pencil className="size-4" />
+          </IconButton>
+          <IconButton disabled={busyId === student.id} onClick={() => void handleDelete(student)} className="size-10 border-red-200 text-brick-700 hover:bg-red-50" aria-label={`Ngừng theo dõi ${student.name}`}>
+            <Trash2 className="size-4" />
+          </IconButton>
+        </>
+      ) : student.schoolLevel ? (
+        <Button size="sm" onClick={() => openSheet(student.schoolLevel!.toLowerCase() as 'thcs' | 'thpt')}>
+          <ExternalLink className="size-4" /> Mở Sheet {student.schoolLevel}
+        </Button>
+      ) : (
+        <>
+          <Button size="sm" onClick={() => openSheet('thcs')}>THCS</Button>
+          <Button size="sm" onClick={() => openSheet('thpt')}>THPT</Button>
+        </>
       )}
+    </div>
+  );
 
-      {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">{error}</div>}
+  return (
+    <div className="space-y-5">
+      <header className="flex flex-col gap-4 border-b border-rule pb-5 md:flex-row md:items-end md:justify-between">
+        <div className="min-w-0">
+          <h1 className="page-title">Hồ sơ học sinh</h1>
+          <p className="mt-1 max-w-2xl text-pretty text-sm text-slate-600">{pageDescription}</p>
+          <p className="mt-2 text-xs text-slate-500">
+            <span className="tabular-nums font-semibold text-ink-950">{students.length}</span> hồ sơ · <span className="tabular-nums font-semibold text-ink-950">{activeStudentCount}</span> đang hoạt động
+          </p>
+        </div>
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap gap-2 border-b border-slate-200 bg-slate-50/80 px-4 pt-4" role="tablist" aria-label="Lọc Student theo cấp học">
-          {(['THCS', 'THPT'] as const).map((level) => (
-            <button
-              key={level}
-              type="button"
-              role="tab"
-              aria-selected={levelFilter === level}
-              onClick={() => setLevelFilter(level)}
-              className={`rounded-t-xl border border-b-0 px-4 py-2.5 text-xs font-bold transition ${levelFilter === level ? 'border-blue-300 bg-white text-blue-800' : 'border-transparent text-slate-500 hover:text-blue-700'}`}
-            >
-              Học sinh {level} <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-2xs text-slate-600">{levelCounts[level]}</span>
-            </button>
-          ))}
-          {levelCounts.UNKNOWN > 0 && (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={levelFilter === 'UNKNOWN'}
-              onClick={() => setLevelFilter('UNKNOWN')}
-              className={`rounded-t-xl border border-b-0 px-4 py-2.5 text-xs font-bold transition ${levelFilter === 'UNKNOWN' ? 'border-amber-300 bg-white text-amber-800' : 'border-transparent text-slate-500 hover:text-amber-700'}`}
-            >
-              Chưa phân loại <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-2xs text-amber-700">{levelCounts.UNKNOWN}</span>
-            </button>
+        <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
+          <Button onClick={onRefresh} disabled={isRefreshing}>
+            <RefreshCw className="size-4" /> {isRefreshing ? 'Đang làm mới' : 'Làm mới'}
+          </Button>
+          {webCrudEnabled ? (
+            <Button variant="primary" onClick={() => setIsCreating(true)}>
+              <Plus className="size-4" /> Thêm học sinh
+            </Button>
+          ) : (
+            <>
+              <Button variant="primary" onClick={() => openSheet(primarySheetLevel)} title="Mở tab quản lý học sinh cùng cột SĐT và email phụ huynh">
+                <ExternalLink className="size-4" /> Mở Sheet {primarySheetLevel.toUpperCase()}
+              </Button>
+              <Button onClick={() => openSheet(secondarySheetLevel)} title="Mở tab quản lý học sinh cùng cột SĐT và email phụ huynh">
+                <ExternalLink className="size-4" /> Mở Sheet {secondarySheetLevel.toUpperCase()}
+              </Button>
+            </>
           )}
         </div>
-        <div className="flex flex-col gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">Danh sách {levelFilter === 'UNKNOWN' ? 'Student chưa phân loại' : `học sinh ${levelFilter}`}</h3>
-            <p className="mt-0.5 text-xs text-slate-500">{filtered.length} hồ sơ phù hợp · {activeStudentCount} hồ sơ đang tư vấn</p>
+      </header>
+
+      {error && <Alert tone="error" action={<Button size="sm" onClick={handleRetry}>Thử lại</Button>}>{error}</Alert>}
+
+      <section className="min-w-0 overflow-hidden border-y border-rule bg-white">
+        <div className="flex flex-wrap gap-x-4 border-b border-rule px-4" role="tablist" aria-label="Lọc học sinh theo cấp học">
+          {(['THCS', 'THPT'] as const).map((level) => (
+            <TabButton
+              key={level}
+              role="tab"
+              selected={levelFilter === level}
+              onClick={() => setLevelFilter(level)}
+              className="inline-flex items-center gap-2 px-1"
+            >
+              Học sinh {level} <span className="tabular-nums text-xs text-slate-500">{levelCounts[level]}</span>
+            </TabButton>
+          ))}
+          {levelCounts.UNKNOWN > 0 && (
+            <TabButton
+              role="tab"
+              selected={levelFilter === 'UNKNOWN'}
+              onClick={() => setLevelFilter('UNKNOWN')}
+              className="inline-flex items-center gap-2 px-1"
+            >
+              Chưa phân loại <span className="tabular-nums text-xs text-slate-500">{levelCounts.UNKNOWN}</span>
+            </TabButton>
+          )}
+        </div>
+        <div className="flex flex-col gap-3 border-b border-rule p-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-balance text-base font-semibold text-slate-950">Danh sách {levelFilter === 'UNKNOWN' ? 'học sinh chưa phân loại' : `học sinh ${levelFilter}`}</h2>
+            <p className="mt-1 text-sm text-slate-500"><span className="tabular-nums">{filtered.length}</span> hồ sơ phù hợp</p>
           </div>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-            <label className="block sm:w-44">
+          <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_11rem] lg:w-auto lg:grid-cols-[20rem_11rem]">
+            <label className="relative block min-w-0">
+              <span className="sr-only">Tìm học sinh</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <TextInput
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Tìm tên, email, số điện thoại"
+                className="pl-9"
+              />
+            </label>
+            <label className="block min-w-0">
               <span className="sr-only">Lọc theo trạng thái</span>
-              <select
+              <Select
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value as 'ALL' | Student['status'])}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
               >
                 <option value="ACTIVE">Đang hoạt động</option>
                 <option value="COMPLETED">Đã hoàn thành</option>
                 <option value="INACTIVE">Ngừng theo dõi</option>
                 <option value="ALL">Tất cả trạng thái</option>
-              </select>
-            </label>
-            <label className="relative block w-full sm:w-80">
-              <span className="sr-only">Tìm Student</span>
-              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Tìm theo tên, email, số điện thoại"
-                className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-              />
+              </Select>
             </label>
           </div>
         </div>
 
         {filtered.length === 0 ? (
-          <div className="p-12 text-center">
-            <UserRound className="mx-auto h-9 w-9 text-slate-300" />
-            <h3 className="mt-3 text-sm font-bold text-slate-800">Không có Student phù hợp</h3>
-            <p className="mt-1 text-xs text-slate-500">Thêm Student mới hoặc thay đổi từ khóa tìm kiếm.</p>
+          <div className="px-4 py-12 text-center">
+            <UserRound className="mx-auto size-8 text-slate-300" />
+            <h3 className="mt-3 text-balance text-sm font-semibold text-slate-900">Không có học sinh phù hợp</h3>
+            <p className="mx-auto mt-1 max-w-sm text-pretty text-sm text-slate-500">Thay đổi bộ lọc hoặc cập nhật nguồn dữ liệu để tiếp tục.</p>
+            <Button variant="primary" onClick={handleEmptyAction} className="mt-4">
+              {query || statusFilter !== 'ACTIVE'
+                ? 'Xóa bộ lọc'
+                : webCrudEnabled
+                  ? 'Thêm học sinh'
+                  : `Mở Sheet ${primarySheetLevel.toUpperCase()}`}
+            </Button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1080px] text-left text-xs">
-              <thead className="bg-slate-50 text-2xs uppercase tracking-wider text-slate-500">
+          <>
+          <div className="grid grid-cols-1 gap-px bg-rule md:grid-cols-2 lg:hidden">
+            {filtered.map((student) => {
+              const statusPresentation = getStudentStatusPresentation(student);
+              return (
+                <article key={student.id} className="min-w-0 bg-white p-4 text-sm text-slate-700">
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="truncate font-semibold text-slate-950">{student.name}</h3>
+                      <p className="mt-0.5 truncate font-mono text-xs text-slate-500">{student.externalId ?? 'Chưa có mã'}</p>
+                    </div>
+                    <span className={cn('shrink-0 rounded px-2 py-1 text-xs font-semibold', statusPresentation.className)}>
+                      {statusPresentation.label}
+                    </span>
+                  </div>
+
+                  <dl className="mt-4 grid min-w-0 grid-cols-2 gap-x-4 gap-y-3">
+                    <div className="min-w-0">
+                      <dt className="text-xs font-medium text-slate-500">Liên hệ học sinh</dt>
+                      <dd className="mt-1 space-y-1 text-xs">
+                        <div className="flex items-center gap-1.5"><Phone className="size-3.5 shrink-0 text-slate-400" /><span className="min-w-0 break-all tabular-nums">{student.phoneNumber}</span></div>
+                        <div className="flex items-center gap-1.5 text-slate-500"><Mail className="size-3.5 shrink-0" /><span className="min-w-0 break-all">{student.email ?? 'Chưa có email'}</span></div>
+                      </dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-xs font-medium text-slate-500">Liên hệ phụ huynh</dt>
+                      <dd className="mt-1 space-y-1 text-xs">
+                        <div className="flex items-center gap-1.5"><Phone className="size-3.5 shrink-0 text-slate-400" /><span className="min-w-0 break-all tabular-nums">{student.parentPhoneNumber ?? 'Chưa có SĐT'}</span></div>
+                        <div className="flex items-center gap-1.5 text-slate-500"><Mail className="size-3.5 shrink-0" /><span className="min-w-0 break-all">{student.parentEmail ?? 'Chưa có email'}</span></div>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-medium text-slate-500">Ngày sinh</dt>
+                      <dd className="mt-1 tabular-nums font-medium text-slate-800">{student.dateOfBirth ?? '—'}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-xs font-medium text-slate-500">Tư vấn viên</dt>
+                      <dd className="mt-1 line-clamp-2 font-medium text-slate-800">{student.assignedCounselorName ?? 'Chưa phân công'}</dd>
+                      {student.assignmentStatus && student.assignmentStatus !== 'ACTIVE' && (
+                        <p className="mt-1 text-xs text-slate-400">Phân công đã kết thúc</p>
+                      )}
+                    </div>
+                  </dl>
+
+                  <div className="mt-4 border-t border-slate-100 pt-3">{renderStudentActions(student)}</div>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="hidden lg:block">
+            <table className="w-full table-fixed text-left text-sm">
+              <thead className="bg-slate-50 text-xs font-medium text-slate-500">
                 <tr>
-                  <th className="px-5 py-3">Student</th>
-                  <th className="px-4 py-3">Liên hệ</th>
-                  <th className="px-4 py-3">Liên hệ phụ huynh</th>
-                  <th className="px-4 py-3">Ngày sinh</th>
-                  <th className="px-4 py-3">Trạng thái</th>
-                  <th className="px-4 py-3">Tư vấn viên</th>
-                  <th className="px-5 py-3 text-right">{webCrudEnabled ? 'Cập nhật' : 'Mở Sheet'}</th>
+                  <th className="px-4 py-3">Học sinh</th>
+                  <th className="px-3 py-3">Liên hệ</th>
+                  <th className="px-3 py-3">Liên hệ phụ huynh</th>
+                  <th className="px-3 py-3">Ngày sinh</th>
+                  <th className="px-3 py-3">Trạng thái</th>
+                  <th className="px-3 py-3">Tư vấn viên</th>
+                  <th className="px-4 py-3 text-right">{webCrudEnabled ? 'Cập nhật' : 'Mở Sheet'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.map((student) => (
-                  <tr key={student.id} className="text-slate-700 hover:bg-slate-50/70">
-                    <td className="px-5 py-4">
-                      <div className="font-bold text-slate-900">{student.name}</div>
-                      <div className="mt-0.5 font-mono text-2xs text-slate-400">
+                {filtered.map((student) => {
+                  const statusPresentation = getStudentStatusPresentation(student);
+                  return (
+                  <tr key={student.id} className="text-slate-700 hover:bg-slate-50">
+                    <td className="px-4 py-3 align-top">
+                      <div className="truncate font-semibold text-slate-950">{student.name}</div>
+                      <div className="mt-0.5 truncate font-mono text-xs text-slate-500">
                         {student.externalId ?? 'Chưa có mã'}
                       </div>
                     </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-slate-400" />{student.phoneNumber}</div>
-                      <div className="mt-1 flex items-center gap-1.5 text-slate-500"><Mail className="h-3.5 w-3.5" />{student.email ?? 'Chưa có email'}</div>
+                    <td className="px-3 py-3 align-top text-xs">
+                      <div className="flex items-center gap-1.5"><Phone className="size-3.5 shrink-0 text-slate-400" /><span className="truncate tabular-nums">{student.phoneNumber}</span></div>
+                      <div className="mt-1 flex items-center gap-1.5 text-slate-500"><Mail className="size-3.5 shrink-0" /><span className="truncate">{student.email ?? 'Chưa có email'}</span></div>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-3 py-3 align-top text-xs">
                       <div className="flex items-center gap-1.5">
-                        <Phone className="h-3.5 w-3.5 text-slate-400" />
-                        {student.parentPhoneNumber ?? 'Chưa có SĐT'}
+                        <Phone className="size-3.5 shrink-0 text-slate-400" />
+                        <span className="truncate tabular-nums">{student.parentPhoneNumber ?? 'Chưa có SĐT'}</span>
                       </div>
                       <div className="mt-1 flex items-center gap-1.5 text-slate-500">
-                        <Mail className="h-3.5 w-3.5" />
-                        {student.parentEmail ?? 'Chưa có email'}
+                        <Mail className="size-3.5 shrink-0" />
+                        <span className="truncate">{student.parentEmail ?? 'Chưa có email'}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-4">{student.dateOfBirth ?? '—'}</td>
-                    <td className="px-4 py-4">
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-2xs font-bold ${
-                        student.status === 'ACTIVE'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : student.status === 'COMPLETED'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-slate-200 text-slate-700'
-                      }`}>
-                        {student.status === 'ACTIVE'
-                          ? student.assignedCounselorId ? 'Đang tư vấn' : 'Chờ chọn lịch'
-                          : student.status === 'COMPLETED'
-                            ? 'Đã hoàn thành'
-                            : 'Ngừng theo dõi'}
+                    <td className="px-3 py-3 align-top text-xs tabular-nums">{student.dateOfBirth ?? '—'}</td>
+                    <td className="px-3 py-3 align-top">
+                      <span className={cn('inline-flex rounded-md px-2 py-1 text-xs font-semibold', statusPresentation.className)}>
+                        {statusPresentation.label}
                       </span>
                     </td>
-                    <td className="px-4 py-4">
-                      <div>{student.assignedCounselorName ?? 'Chưa phân công'}</div>
+                    <td className="px-3 py-3 align-top text-xs">
+                      <div className="line-clamp-2">{student.assignedCounselorName ?? 'Chưa phân công'}</div>
                       {student.assignmentStatus && student.assignmentStatus !== 'ACTIVE' && (
-                        <div className="mt-1 text-2xs text-slate-400">Phân công đã kết thúc</div>
+                        <div className="mt-1 text-xs text-slate-400">Phân công đã kết thúc</div>
                       )}
                     </td>
-                    <td className="px-5 py-4">
-                      <div className="flex justify-end gap-2">
-                        {webCrudEnabled ? (
-                          <>
-                          <button type="button" onClick={() => setEditing(student)} className="rounded-lg border border-slate-300 p-2 text-slate-600 hover:bg-blue-50 hover:text-blue-700" aria-label={`Sửa ${student.name}`}>
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button type="button" disabled={busyId === student.id} onClick={() => void handleDelete(student)} className="rounded-lg border border-rose-200 p-2 text-rose-600 hover:bg-rose-50 disabled:opacity-50" aria-label={`Xóa ${student.name}`}>
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                          </>
-                        ) : student.schoolLevel ? (
-                          <button type="button" onClick={() => openSheet(student.schoolLevel!.toLowerCase() as 'thcs' | 'thpt')} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 font-bold text-blue-700 hover:bg-blue-100">
-                            <ExternalLink className="h-3.5 w-3.5" /> Mở Sheet {student.schoolLevel}
-                          </button>
-                        ) : (
-                          <>
-                            <button type="button" onClick={() => openSheet('thcs')} className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-2 font-bold text-blue-700 hover:bg-blue-100">THCS</button>
-                            <button type="button" onClick={() => openSheet('thpt')} className="rounded-lg border border-cyan-200 bg-cyan-50 px-2.5 py-2 font-bold text-cyan-800 hover:bg-cyan-100">THPT</button>
-                          </>
-                        )}
-                      </div>
+                    <td className="px-4 py-3 align-top">
+                      {renderStudentActions(student)}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 
@@ -382,42 +444,43 @@ const StudentFormModal = ({
         dateOfBirth: form.dateOfBirth || null,
       });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Không thể lưu Student.');
+      setError(caught instanceof Error ? caught.message : 'Không thể lưu học sinh.');
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="student-form-title">
-      <form onSubmit={submit} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-200 p-5">
-          <div><h2 id="student-form-title" className="text-base font-bold text-slate-900">{student ? 'Chỉnh sửa Student' : 'Thêm Student'}</h2><p className="mt-0.5 text-xs text-slate-500">Thông tin hồ sơ cơ bản, không bao gồm ghi chú tâm lý.</p></div>
-          <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Đóng"><X className="h-5 w-5" /></button>
+    <form onSubmit={submit}>
+      <ModalSurface
+        title={student ? 'Chỉnh sửa học sinh' : 'Thêm học sinh'}
+        onClose={onClose}
+        className="max-w-2xl"
+        footer={(
+          <>
+            <Button onClick={onClose}>Hủy</Button>
+            <Button type="submit" variant="primary" disabled={isSaving}>{isSaving ? 'Đang lưu…' : student ? 'Lưu thay đổi' : 'Thêm học sinh'}</Button>
+          </>
+        )}
+      >
+        <p className="mb-5 text-sm text-slate-500">Thông tin hồ sơ cơ bản, không bao gồm ghi chú tâm lý.</p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {error && <Alert tone="error" className="sm:col-span-2">{error}</Alert>}
+          <Field label="Tên" required><TextInput required value={form.firstName} onChange={(event) => setForm({ ...form, firstName: event.target.value })} /></Field>
+          <Field label="Họ" required><TextInput required value={form.lastName} onChange={(event) => setForm({ ...form, lastName: event.target.value })} /></Field>
+          <Field label="Số điện thoại" required><TextInput required value={form.phoneNumber} onChange={(event) => setForm({ ...form, phoneNumber: event.target.value })} /></Field>
+          <Field label="Email"><TextInput type="email" value={form.email ?? ''} onChange={(event) => setForm({ ...form, email: event.target.value })} /></Field>
+          <Field label="SĐT phụ huynh"><TextInput value={form.parentPhoneNumber ?? ''} onChange={(event) => setForm({ ...form, parentPhoneNumber: event.target.value })} /></Field>
+          <Field label="Email phụ huynh"><TextInput type="email" value={form.parentEmail ?? ''} onChange={(event) => setForm({ ...form, parentEmail: event.target.value })} /></Field>
+          <Field label="Ngày sinh"><TextInput type="date" value={form.dateOfBirth ?? ''} onChange={(event) => setForm({ ...form, dateOfBirth: event.target.value })} /></Field>
+          <Field label="Giới tính"><Select value={form.gender ?? ''} onChange={(event) => setForm({ ...form, gender: event.target.value })}><option value="">Chưa xác định</option><option value="MALE">Nam</option><option value="FEMALE">Nữ</option><option value="OTHER">Khác</option></Select></Field>
+          <Field label="Cấp học"><Select value={form.schoolLevel ?? ''} onChange={(event) => setForm({ ...form, schoolLevel: (event.target.value || null) as CreateStudentInput['schoolLevel'] })}><option value="">Chưa xác định</option><option value="THCS">THCS</option><option value="THPT">THPT</option></Select></Field>
         </div>
-        <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
-          {error && <div role="alert" className="sm:col-span-2 rounded-lg bg-rose-50 p-3 text-xs text-rose-700">{error}</div>}
-          <Field label="Tên" required><input required value={form.firstName} onChange={(event) => setForm({ ...form, firstName: event.target.value })} className={inputClass} /></Field>
-          <Field label="Họ" required><input required value={form.lastName} onChange={(event) => setForm({ ...form, lastName: event.target.value })} className={inputClass} /></Field>
-          <Field label="Số điện thoại" required><input required value={form.phoneNumber} onChange={(event) => setForm({ ...form, phoneNumber: event.target.value })} className={inputClass} /></Field>
-          <Field label="Email"><input type="email" value={form.email ?? ''} onChange={(event) => setForm({ ...form, email: event.target.value })} className={inputClass} /></Field>
-          <Field label="SĐT phụ huynh"><input value={form.parentPhoneNumber ?? ''} onChange={(event) => setForm({ ...form, parentPhoneNumber: event.target.value })} className={inputClass} /></Field>
-          <Field label="Email phụ huynh"><input type="email" value={form.parentEmail ?? ''} onChange={(event) => setForm({ ...form, parentEmail: event.target.value })} className={inputClass} /></Field>
-          <Field label="Ngày sinh"><input type="date" value={form.dateOfBirth ?? ''} onChange={(event) => setForm({ ...form, dateOfBirth: event.target.value })} className={inputClass} /></Field>
-          <Field label="Giới tính"><select value={form.gender ?? ''} onChange={(event) => setForm({ ...form, gender: event.target.value })} className={inputClass}><option value="">Chưa xác định</option><option value="MALE">Nam</option><option value="FEMALE">Nữ</option><option value="OTHER">Khác</option></select></Field>
-          <Field label="Cấp học"><select value={form.schoolLevel ?? ''} onChange={(event) => setForm({ ...form, schoolLevel: (event.target.value || null) as CreateStudentInput['schoolLevel'] })} className={inputClass}><option value="">Chưa xác định</option><option value="THCS">THCS</option><option value="THPT">THPT</option></select></Field>
-        </div>
-        <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 p-4">
-          <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100">Hủy</button>
-          <button type="submit" disabled={isSaving} className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-60">{isSaving ? 'Đang lưu…' : student ? 'Lưu thay đổi' : 'Thêm Student'}</button>
-        </div>
-      </form>
-    </div>
+      </ModalSurface>
+    </form>
   );
 };
 
-const inputClass = 'mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200';
-
 const Field = ({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) => (
-  <label className="text-xs font-semibold text-slate-700">{label}{required && <span className="text-rose-600"> *</span>}{children}</label>
+  <label className="space-y-1.5 text-sm font-medium text-slate-700">{label}{required && <span className="text-brick-700"> *</span>}{children}</label>
 );

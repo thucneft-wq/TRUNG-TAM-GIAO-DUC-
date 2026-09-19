@@ -50,7 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           type="button"
           onClick={onClose}
           aria-label="Đóng trình đơn điều hướng"
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 lg:hidden transition-opacity cursor-default"
+          className="fixed inset-0 z-40 cursor-default bg-ink-950/45 lg:hidden"
         />
       )}
 
@@ -58,46 +58,44 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <aside
         id="app-sidebar"
         aria-label="Điều hướng chính"
-        className={`fixed top-0 bottom-0 left-0 z-50 w-72 bg-slate-900 text-slate-100 flex flex-col border-r border-slate-800 transition-transform duration-200 ease-in-out lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-[calc(100%-2.5rem)] max-w-80 flex-col border-r border-rule bg-paper text-ink-950 transition-transform duration-200 ease-out lg:w-64 lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Brand Header */}
-        <div className="p-6 border-b border-slate-800/80 relative">
+        <div className="relative border-b border-rule bg-white px-5 py-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-teal-500 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-              <HeartPulse className="w-5 h-5" />
+            <div className="flex size-10 items-center justify-center rounded border border-academic-700 text-academic-700">
+              <HeartPulse className="size-5" />
             </div>
-            <div>
-              <div className="text-xs font-bold uppercase tracking-wider text-teal-400 flex items-center gap-1.5">
-                Bản sao số
-                <span className="w-2 h-2 rounded-full bg-teal-400"></span>
-              </div>
-              <h2 className="text-base font-bold text-white tracking-tight leading-tight">
-                Tham vấn tâm lý
+            <div className="min-w-0">
+              <h2 className="font-display text-base font-semibold leading-tight text-ink-950">
+                Trung tâm giáo dục
               </h2>
+              <p className="mt-0.5 text-xs text-slate-500">Sổ vận hành học đường</p>
             </div>
             <button
               type="button"
               onClick={onClose}
               aria-label="Đóng trình đơn điều hướng"
-              className="ml-auto lg:hidden rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+              className="ml-auto inline-flex size-11 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-ink-950 lg:hidden"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
-          <p className="text-2xs text-slate-400 mt-2 font-medium">
-            Hệ thống quản trị Trung tâm Sức khỏe Tâm lý Học đường
-          </p>
+          <div className="mt-5 flex items-center gap-2 border-l-2 border-academic-700 pl-3 text-xs text-slate-600">
+            <span className={`size-2 rounded-full ${isDataLoading ? 'animate-pulse bg-amber-500' : dataSource === 'api' ? 'bg-pine-700' : 'bg-amber-500'}`} />
+            {isDataLoading ? 'Đang cập nhật dữ liệu' : dataSource === 'api' ? 'Dữ liệu hệ thống đang hoạt động' : 'Đang dùng dữ liệu cục bộ'}
+          </div>
         </div>
 
         {/* Navigation Menu */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+        <div className="flex-1 overflow-y-auto px-3 py-5">
           <div>
-            <div className="px-3 text-2xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-              Chức năng chính
+            <div className="mb-2 px-3 text-xs font-semibold text-slate-500">
+              Hồ sơ và vận hành
             </div>
-            <nav aria-label="Các trang quản trị" className="space-y-1.5">
+            <nav aria-label="Các trang quản trị" className="space-y-1">
               <button
                 id="nav-link-students"
                 type="button"
@@ -106,17 +104,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onNavigate('students');
                   onClose();
                 }}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                className={`flex min-h-11 w-full items-center justify-between rounded-r border-l-2 px-3 py-2.5 text-left text-sm font-medium transition-colors ${
                   currentScreen === 'students'
-                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    ? 'border-academic-700 bg-teal-50 text-academic-800'
+                    : 'border-transparent text-slate-600 hover:bg-slate-100 hover:text-ink-950'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <GraduationCap className="w-4 h-4" />
-                  <span>Quản lý Student</span>
+                  <span>Quản lý học sinh</span>
                 </div>
-                {currentScreen === 'students' && <ChevronRight className="w-3.5 h-3.5 text-blue-200" />}
+                {currentScreen === 'students' && <ChevronRight className="size-4 text-academic-700" />}
               </button>
 
               {isAdmin && (
@@ -128,17 +126,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     onNavigate('dashboard');
                     onClose();
                   }}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`flex min-h-11 w-full items-center justify-between rounded-r border-l-2 px-3 py-2.5 text-left text-sm font-medium transition-colors ${
                     currentScreen === 'dashboard'
-                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                      ? 'border-academic-700 bg-teal-50 text-academic-800'
+                      : 'border-transparent text-slate-600 hover:bg-slate-100 hover:text-ink-950'
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <LayoutDashboard className="w-4 h-4" />
                     <span>Tổng quan bảng điều khiển</span>
                   </div>
-                  {currentScreen === 'dashboard' && <ChevronRight className="w-3.5 h-3.5 text-blue-200" />}
+                  {currentScreen === 'dashboard' && <ChevronRight className="size-4 text-academic-700" />}
                 </button>
               )}
 
@@ -151,10 +149,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     onNavigate('knowledge-graph');
                     onClose();
                   }}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`flex min-h-11 w-full items-center justify-between rounded-r border-l-2 px-3 py-2.5 text-left text-sm font-medium transition-colors ${
                     currentScreen === 'knowledge-graph'
-                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                      ? 'border-academic-700 bg-teal-50 text-academic-800'
+                      : 'border-transparent text-slate-600 hover:bg-slate-100 hover:text-ink-950'
                   }`}
                 >
                   <div className="flex min-w-0 items-center gap-3">
@@ -162,9 +160,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <span>Knowledge Graph</span>
                   </div>
                   {currentScreen === 'knowledge-graph' ? (
-                    <ChevronRight className="h-3.5 w-3.5 text-blue-200" />
+                    <ChevronRight className="size-4 text-academic-700" />
                   ) : (
-                    <span className="rounded border border-emerald-700/70 bg-emerald-950/70 px-1.5 py-0.5 text-2xs font-bold text-emerald-300">
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-2xs font-semibold text-emerald-700">
                       Đã kết nối
                     </span>
                   )}
@@ -180,17 +178,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     onNavigate('counselor-management');
                     onClose();
                   }}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`flex min-h-11 w-full items-center justify-between rounded-r border-l-2 px-3 py-2.5 text-left text-sm font-medium transition-colors ${
                     currentScreen === 'counselor-management'
-                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                      ? 'border-academic-700 bg-teal-50 text-academic-800'
+                      : 'border-transparent text-slate-600 hover:bg-slate-100 hover:text-ink-950'
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <Users2 className="w-4 h-4" />
                     <span>Quản lý tư vấn viên</span>
                   </div>
-                  {currentScreen === 'counselor-management' && <ChevronRight className="w-3.5 h-3.5 text-blue-200" />}
+                  {currentScreen === 'counselor-management' && <ChevronRight className="size-4 text-academic-700" />}
                 </button>
               )}
 
@@ -203,17 +201,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     onNavigate('counselors');
                     onClose();
                   }}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`flex min-h-11 w-full items-center justify-between rounded-r border-l-2 px-3 py-2.5 text-left text-sm font-medium transition-colors ${
                     currentScreen === 'counselors'
-                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                      ? 'border-academic-700 bg-teal-50 text-academic-800'
+                      : 'border-transparent text-slate-600 hover:bg-slate-100 hover:text-ink-950'
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <Activity className="w-4 h-4" />
                     <span>Hiệu suất tư vấn viên</span>
                   </div>
-                  {currentScreen === 'counselors' && <ChevronRight className="w-3.5 h-3.5 text-blue-200" />}
+                  {currentScreen === 'counselors' && <ChevronRight className="size-4 text-academic-700" />}
                 </button>
               )}
 
@@ -226,10 +224,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     onNavigate('counselor-detail');
                     onClose();
                   }}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`flex min-h-11 w-full items-center justify-between rounded-r border-l-2 px-3 py-2.5 text-left text-sm font-medium transition-colors ${
                     currentScreen === 'counselor-detail'
-                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                      ? 'border-academic-700 bg-teal-50 text-academic-800'
+                      : 'border-transparent text-slate-600 hover:bg-slate-100 hover:text-ink-950'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -237,7 +235,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <span>Chi tiết KPI tư vấn viên</span>
                   </div>
                   {selectedCounselorId && (
-                    <span className="text-2xs bg-slate-800 text-teal-300 px-1.5 py-0.5 rounded font-mono">
+                    <span className="rounded border border-rule bg-white px-1.5 py-0.5 font-mono text-2xs text-academic-700">
                       {selectedCounselorId}
                     </span>
                   )}
@@ -254,17 +252,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onNavigate('student-trends');
                       onClose();
                     }}
-                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                    className={`flex min-h-11 w-full items-center justify-between rounded-r border-l-2 px-3 py-2.5 text-left text-sm font-medium transition-colors ${
                       currentScreen === 'student-trends'
-                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                        : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                        ? 'border-academic-700 bg-teal-50 text-academic-800'
+                        : 'border-transparent text-slate-600 hover:bg-slate-100 hover:text-ink-950'
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <TrendingUp className="w-4 h-4" />
                       <span>Xu hướng học viên</span>
                     </div>
-                    {currentScreen === 'student-trends' && <ChevronRight className="w-3.5 h-3.5 text-blue-200" />}
+                    {currentScreen === 'student-trends' && <ChevronRight className="size-4 text-academic-700" />}
                   </button>
 
                   <button
@@ -275,17 +273,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onNavigate('feedback-analytics');
                       onClose();
                     }}
-                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                    className={`flex min-h-11 w-full items-center justify-between rounded-r border-l-2 px-3 py-2.5 text-left text-sm font-medium transition-colors ${
                       currentScreen === 'feedback-analytics'
-                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                        : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                        ? 'border-academic-700 bg-teal-50 text-academic-800'
+                        : 'border-transparent text-slate-600 hover:bg-slate-100 hover:text-ink-950'
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <MessageSquareHeart className="w-4 h-4" />
                       <span>Phân tích feedback</span>
                     </div>
-                    {currentScreen === 'feedback-analytics' && <ChevronRight className="w-3.5 h-3.5 text-blue-200" />}
+                    {currentScreen === 'feedback-analytics' && <ChevronRight className="size-4 text-academic-700" />}
                   </button>
 
                   <button
@@ -296,17 +294,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onNavigate('audit-logs');
                       onClose();
                     }}
-                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                    className={`flex min-h-11 w-full items-center justify-between rounded-r border-l-2 px-3 py-2.5 text-left text-sm font-medium transition-colors ${
                       currentScreen === 'audit-logs'
-                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                        : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                        ? 'border-academic-700 bg-teal-50 text-academic-800'
+                        : 'border-transparent text-slate-600 hover:bg-slate-100 hover:text-ink-950'
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <FileClock className="w-4 h-4" />
                       <span>Nhật ký bảo mật</span>
                     </div>
-                    {currentScreen === 'audit-logs' && <ChevronRight className="w-3.5 h-3.5 text-blue-200" />}
+                    {currentScreen === 'audit-logs' && <ChevronRight className="size-4 text-academic-700" />}
                   </button>
                 </>
               )}
@@ -315,7 +313,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Footer / Sign Out */}
-        <div className="p-4 border-t border-slate-800/80">
+        <div className="border-t border-rule bg-white p-3">
           <button
             id="btn-sidebar-logout"
             type="button"
@@ -323,7 +321,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onLogout();
               onClose();
             }}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-rose-950/60 hover:text-rose-300 hover:border-rose-800/50 border border-slate-700 text-xs font-semibold transition-all"
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded border border-rule bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-brick-700"
           >
             <LogOut className="w-4 h-4" />
             <span>Đăng xuất</span>

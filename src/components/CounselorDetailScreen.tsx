@@ -14,11 +14,7 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
-  Info,
-  TrendingUp,
   Award,
-  AlertCircle,
   AlertTriangle,
   LoaderCircle,
   Pencil,
@@ -36,6 +32,7 @@ import {
   REQUIRED_KPI_COUNT,
 } from '../domain/kpiPolicy';
 import { CounselorFormModal } from './CounselorFormModal';
+import { Alert, Button, IconButton, ModalSurface } from './ui/Primitives';
 
 const formatSessionDuration = (hours: number | null | undefined): string => {
   if (!hours || hours <= 0) return '0 giờ';
@@ -113,76 +110,74 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
   };
 
   return (
-    <div id="screen-counselor-detail" className="space-y-6">
+    <div id="screen-counselor-detail" className="space-y-7">
       {/* Top Breadcrumb & Navigation Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <button
+        <Button
           id="btn-back-to-counselors"
-          type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-slate-50 transition-colors shadow-xs self-start"
+          size="sm"
+          className="self-start"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Quay lại bảng hiệu suất</span>
-        </button>
+        </Button>
 
         {canManageCounselors && <div className="flex flex-wrap items-center gap-2">
-          <button
+          <Button
             id="btn-edit-counselor"
-            type="button"
             onClick={() => setIsEditOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100"
+            size="sm"
+            variant="primary"
           >
             <Pencil className="h-3.5 w-3.5" />
             Chỉnh sửa tư vấn viên
-          </button>
-          <button
+          </Button>
+          <Button
             id="btn-deactivate-counselor"
-            type="button"
             onClick={() => {
               setDeactivateError(null);
               setIsDeactivateOpen(true);
             }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 transition hover:bg-rose-100"
+            size="sm"
+            className="border-red-200 text-brick-700 hover:bg-red-50"
           >
             <UserMinus className="h-3.5 w-3.5" />
             Ngừng hoạt động
-          </button>
+          </Button>
         </div>}
 
         {/* Quick Counselor Switcher */}
         <div className="flex items-center gap-2 self-end sm:self-auto">
           <span className="text-2xs text-slate-500 font-medium">Chuyển tư vấn viên:</span>
-          <button
-            type="button"
+          <IconButton
             onClick={() => onSelectCounselor(prevCounselor)}
-            className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-blue-700 hover:bg-slate-50 text-xs font-medium flex items-center gap-1 shadow-xs"
+            className="size-9 border-rule"
+            aria-label={`Tư vấn viên trước: ${prevCounselor.name}`}
             title={`Trước: ${prevCounselor.name}`}
           >
             <ChevronLeft className="w-4 h-4" />
-            <span className="hidden md:inline">{prevCounselor.externalId ?? 'Chưa có mã'}</span>
-          </button>
+          </IconButton>
           <span className="text-2xs font-mono font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded">
             {counselor.externalId ?? 'Chưa có mã'} ({currentIndex + 1}/{allCounselors.length})
           </span>
-          <button
-            type="button"
+          <IconButton
             onClick={() => onSelectCounselor(nextCounselor)}
-            className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-blue-700 hover:bg-slate-50 text-xs font-medium flex items-center gap-1 shadow-xs"
+            className="size-9 border-rule"
+            aria-label={`Tư vấn viên tiếp theo: ${nextCounselor.name}`}
             title={`Tiếp theo: ${nextCounselor.name}`}
           >
-            <span className="hidden md:inline">{nextCounselor.externalId ?? 'Chưa có mã'}</span>
             <ChevronRight className="w-4 h-4" />
-          </button>
+          </IconButton>
         </div>
       </div>
 
       {/* Counselor Profile Header Card */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm relative overflow-hidden">
+      <header className="border-y border-rule bg-white px-4 py-5 sm:px-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="flex items-start gap-4">
             <div
-              className={`w-16 h-16 rounded-2xl bg-gradient-to-tr ${counselor.avatarColor} text-white flex items-center justify-center text-xl font-bold shadow-md shrink-0`}
+              className="flex size-14 shrink-0 items-center justify-center rounded bg-academic-700 font-display text-xl font-semibold text-white"
             >
               {counselor.name.split(' ').map((n) => n[0]).slice(0, 2).join('')}
             </div>
@@ -192,7 +187,7 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
                 <span className="px-2.5 py-0.5 rounded text-2xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-200">
                   {counselor.externalId ?? 'Chưa có mã'}
                 </span>
-                <span className="text-2xs text-blue-700 font-semibold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                <span className="rounded border border-teal-200 bg-teal-50 px-2 py-0.5 text-2xs font-semibold text-academic-800">
                   {counselor.title}
                 </span>
                 <span className="text-2xs text-slate-500 font-medium">
@@ -200,9 +195,9 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
                 </span>
               </div>
 
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              <h1 className="page-title">
                 {counselor.name}
-              </h2>
+              </h1>
 
               <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-0.5">
                 <span className="flex items-center gap-1.5">
@@ -218,15 +213,15 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
           </div>
 
           {/* Overall Performance Status Badge Hero */}
-          <div className="p-4 rounded-xl border flex flex-col items-center lg:items-end justify-center text-center lg:text-right bg-slate-50 border-slate-200 min-w-56">
-            <div className="text-2xs font-bold uppercase tracking-wider text-slate-500 mb-1">
+          <div className="min-w-56 border-l-2 border-academic-700 pl-4 text-left lg:text-right">
+            <div className="mb-1 text-xs font-medium text-slate-500">
               Trạng thái chuyên môn tổng thể
             </div>
 
             {isOverallPass ? (
               <div
                 id="counselor-detail-overall-status-pass"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-xs"
+                className="inline-flex items-center gap-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-pine-700"
               >
                 <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                 <span>Đạt ({passedKpis}/{PERFORMANCE_KPI_COUNT} KPI hiệu suất)</span>
@@ -234,7 +229,7 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
             ) : isInsufficientData ? (
               <div
                 id="counselor-detail-overall-status-insufficient"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-xs"
+                className="inline-flex items-center gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800"
               >
                 <AlertTriangle className="w-5 h-5 text-amber-600" />
                 <span>Chưa đủ dữ liệu ({evaluation.evaluableKpiCount}/{PERFORMANCE_KPI_COUNT} KPI hiệu suất)</span>
@@ -242,7 +237,7 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
             ) : (
               <div
                 id="counselor-detail-overall-status-not-pass"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-rose-100 text-rose-900 border border-rose-300 shadow-xs"
+                className="inline-flex items-center gap-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-brick-700"
               >
                 <XCircle className="w-5 h-5 text-rose-600" />
                 <span>Cần cải thiện ({passedKpis}/{PERFORMANCE_KPI_COUNT} KPI hiệu suất đạt)</span>
@@ -258,18 +253,18 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Section 1: Five KPI Results */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            <h2 className="section-title flex flex-wrap items-center gap-2">
               Kết quả 4 KPI hiệu suất và 1 điều kiện an toàn
-              <span className="text-2xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
+              <span className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
                 Điều kiện đạt: ít nhất {REQUIRED_PASSED_KPIS}/{PERFORMANCE_KPI_COUNT} KPI và không quá tải ca
               </span>
-            </h3>
+            </h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Khối lượng ca là điều kiện an toàn, không được cộng thành tích hiệu suất; chấm công HR được tách riêng
             </p>
@@ -291,9 +286,9 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
         </div>
 
         {/* 5 KPI Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-px border-y border-rule bg-rule md:grid-cols-2 lg:grid-cols-3">
           {!evaluation.hasExactlyFiveKpis && (
-            <div className="md:col-span-2 lg:col-span-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-900">
+            <div className="flex items-start gap-2 bg-red-50 p-4 text-xs text-red-950 md:col-span-2 lg:col-span-3">
               <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
               <p>
                 <strong>Chưa đủ dữ liệu để kết luận:</strong> hệ thống cần đủ {REQUIRED_KPI_COUNT} tiêu chí, nhưng hiện nhận được {periodKpis.length}. Kết quả tạm thời là <strong>Cần kiểm tra</strong>.
@@ -309,19 +304,13 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
               <div
                 key={kpi.id}
                 id={`kpi-card-${kpi.id}`}
-                className={`p-5 rounded-xl border shadow-xs transition-all bg-white flex flex-col justify-between ${
-                  !hasEnoughData
-                    ? 'border-amber-200 hover:border-amber-300'
-                    : isPass
-                    ? 'border-emerald-200 hover:border-emerald-300'
-                    : 'border-rose-200 hover:border-rose-300'
-                }`}
+                className="flex flex-col justify-between bg-white p-5"
               >
                 <div>
                   {/* Category & Status Badge */}
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-2xs font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                      Tiêu chí #{idx + 1} • {kpi.category}
+                    <span className="text-xs font-medium text-slate-500">
+                      Tiêu chí {idx + 1} · {kpi.category}
                     </span>
                     {!hasEnoughData ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
@@ -342,14 +331,14 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
                   </div>
 
                   {/* KPI Name */}
-                  <h4 className="text-sm font-bold text-slate-900 tracking-tight">
+                  <h3 className="mt-2 text-sm font-semibold text-ink-950">
                     {kpi.name}
-                  </h4>
+                  </h3>
 
                   {/* Actual vs Target Comparison Table / Box */}
-                  <div className="grid grid-cols-2 gap-2 my-3 p-3 rounded-lg bg-slate-50 border border-slate-100">
-                    <div>
-                      <div className="text-2xs font-medium text-slate-500 uppercase">Giá trị thực tế</div>
+                  <div className="my-3 grid grid-cols-2 divide-x divide-rule border-y border-rule bg-slate-50">
+                    <div className="p-3">
+                      <div className="text-xs font-medium text-slate-500">Giá trị thực tế</div>
                       <div
                         className={`text-base font-bold mt-0.5 ${
                           !hasEnoughData ? 'text-amber-800' : isPass ? 'text-emerald-800' : 'text-rose-800'
@@ -358,8 +347,8 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
                         {getKpiActualValueLabel(kpi)}
                       </div>
                     </div>
-                    <div>
-                      <div className="text-2xs font-medium text-slate-500 uppercase">Giá trị mục tiêu</div>
+                    <div className="p-3">
+                      <div className="text-xs font-medium text-slate-500">Giá trị mục tiêu</div>
                       <div className="text-base font-bold text-slate-700 mt-0.5">
                         {kpi.targetValue}
                       </div>
@@ -367,7 +356,7 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
                   </div>
 
                   {/* Plain-language calculation note */}
-                  <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-2.5 text-2xs leading-relaxed text-slate-600">
+                  <div className="border-l-2 border-rule pl-3 text-xs leading-relaxed text-slate-600">
                     <strong className="text-slate-700">Cách tính: </strong>
                     {getKpiAuditNote(kpi)}
                   </div>
@@ -387,16 +376,16 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
           })}
 
           {/* 6th Card: Evaluation Rule Explanation Card */}
-          <div className="p-5 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/80 to-teal-50/50 flex flex-col justify-between">
+          <aside className="flex flex-col justify-between bg-teal-50 p-5">
             <div>
-              <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900 mb-2">
-                <Award className="w-4 h-4 text-blue-700" />
+              <div className="mb-2 flex items-center gap-1.5 text-xs font-bold text-academic-800">
+                <Award className="h-4 w-4 text-academic-700" />
                 Quy định tiêu chuẩn của đơn vị
               </div>
               <p className="text-xs text-slate-700 leading-relaxed">
                 Trạng thái tổng thể <strong>Đạt</strong> khi có ít nhất {REQUIRED_PASSED_KPIS}/{PERFORMANCE_KPI_COUNT} KPI hiệu suất có đủ dữ liệu và đạt, đồng thời có ca được phân công nhưng không vượt mức an toàn. Thiếu dữ liệu không bị tính là hiệu suất kém.
               </p>
-              <div className="mt-3 p-2.5 rounded-lg bg-white/80 border border-blue-100 text-2xs text-slate-600 space-y-1">
+              <div className="mt-3 space-y-1 border-y border-teal-200 bg-white/70 px-3 py-2.5 text-xs text-slate-600">
                 <div className="flex items-center justify-between">
                   <span>KPI hiệu suất đạt:</span>
                   <span className="font-bold text-slate-800">{passedKpis} / {PERFORMANCE_KPI_COUNT}</span>
@@ -418,21 +407,21 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
               </div>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-blue-200/60 text-2xs text-blue-800 font-medium flex items-center gap-1">
+            <div className="mt-4 flex items-center gap-1 border-t border-teal-200/70 pt-3 text-2xs font-medium text-academic-800">
               <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
               Được giám sát bởi Hội đồng Sức khỏe Học đường
             </div>
-          </div>
+          </aside>
         </div>
       </div>
 
       {/* HR attendance is intentionally separate from professional performance. */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+      <section className="space-y-4 border-y border-rule bg-white px-4 py-5 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
-              <Clock className="w-4 h-4 text-blue-700" /> Tuân thủ chấm công HR
-            </h3>
+            <h2 className="section-title flex items-center gap-2">
+              <Clock className="h-4 w-4 text-academic-700" /> Tuân thủ chấm công HR
+            </h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Theo dõi nhân sự riêng, không ảnh hưởng đến 4 KPI hiệu suất và điều kiện an toàn tải ca
             </p>
@@ -451,9 +440,9 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
                 : 'Chưa có dữ liệu'}
           </span>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
+        <div className="grid grid-cols-2 gap-px bg-rule text-center md:grid-cols-5">
           {/* Ngày đăng ký */}
-          <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 flex flex-col justify-center">
+          <div className="flex flex-col justify-center bg-slate-50 p-3">
             <div className="text-2xs text-slate-500">Ngày đăng ký</div>
             <div className="mt-1 text-lg font-bold text-slate-900">
               {hrCompliance.registeredWorkdays}
@@ -461,7 +450,7 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
           </div>
 
           {/* Giờ đăng ký */}
-          <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 flex flex-col justify-center">
+          <div className="flex flex-col justify-center bg-slate-50 p-3">
             <div className="text-2xs text-slate-500">Giờ đăng ký</div>
             <div className="mt-1 text-lg font-bold text-slate-900">
               {hrCompliance.registeredHours}
@@ -469,7 +458,7 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
           </div>
 
           {/* Ca dài nhất */}
-          <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 flex flex-col justify-center">
+          <div className="flex flex-col justify-center bg-slate-50 p-3">
             <div className="text-2xs text-slate-500">Ca dài nhất</div>
 
             <div className="mt-1 text-lg font-bold text-slate-900">
@@ -482,7 +471,7 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
           </div>
 
           {/* Ca vượt giới hạn */}
-          <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 flex flex-col justify-center">
+          <div className="flex flex-col justify-center bg-slate-50 p-3">
             <div className="text-2xs text-slate-500">Ca vượt 1 giờ</div>
             <div className="mt-1 text-lg font-bold text-slate-900">
               {hrCompliance.overLimitDays}
@@ -490,7 +479,7 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
           </div>
 
           {/* Tuần thiếu ngày nghỉ */}
-          <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 flex flex-col justify-center">
+          <div className="flex flex-col justify-center bg-slate-50 p-3">
             <div className="text-2xs text-slate-500">Tuần thiếu ngày nghỉ</div>
             <div className="mt-1 text-lg font-bold text-slate-900">
               {hrCompliance.weeksWithoutRest}
@@ -501,117 +490,117 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
         <p className="text-2xs leading-relaxed text-slate-500">
           {hrCompliance.note}
         </p>
-      </div>
+      </section>
 
       {/* Section 2: Relationship Summary */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+      <section className="space-y-4 border-y border-rule bg-white px-4 py-5 sm:px-6">
         <div>
-          <h3 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+          <h2 className="section-title flex flex-wrap items-center gap-2">
             Tổng hợp quan hệ và tải ca tư vấn viên
-            <span className="text-2xs font-mono text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+            <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-mono text-xs font-medium text-pine-700">
               Đã đồng bộ Bản sao số
             </span>
-          </h3>
+          </h2>
           <p className="text-xs text-slate-500 mt-0.5">
             Tổng hợp tải ca học sinh, trạng thái phiên tham vấn và các bài trắc nghiệm tâm lý
           </p>
         </div>
 
         {/* 6 Metric Grid for Relationship Summary */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 gap-px bg-rule sm:grid-cols-3 lg:grid-cols-6">
           {/* 1. Assigned Students */}
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-            <div className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wider text-slate-500">
-              <Users className="w-3.5 h-3.5 text-blue-600" />
+          <div className="bg-slate-50 p-4">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+              <Users className="h-3.5 w-3.5 text-academic-700" />
               Học sinh được phân công
             </div>
-            <div className="text-2xl font-extrabold text-slate-900 mt-1">
+            <div className="mt-1 font-display text-2xl font-semibold text-ink-950">
               {timeMetrics.assignedStudents}
             </div>
-            <div className="text-2xs text-slate-500 mt-0.5">
+            <div className="mt-0.5 text-xs text-slate-500">
               Danh sách tiếp nhận đang hoạt động
             </div>
           </div>
 
           {/* 2. Completed Bookings */}
-          <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200">
-            <div className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wider text-blue-700">
-              <CalendarCheck className="w-3.5 h-3.5 text-blue-600" />
+          <div className="bg-slate-50 p-4">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+              <CalendarCheck className="h-3.5 w-3.5 text-academic-700" />
               Lịch hẹn đã hoàn thành
             </div>
-            <div className="text-2xl font-extrabold text-blue-950 mt-1">
+            <div className="mt-1 font-display text-2xl font-semibold text-ink-950">
               {timeMetrics.completedBookings}
             </div>
-            <div className="text-2xs text-blue-600 mt-0.5">
+            <div className="mt-0.5 text-xs text-slate-500">
               Phiên đã thực hiện
             </div>
           </div>
 
           {/* 3. Pending Bookings */}
-          <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200">
-            <div className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wider text-amber-700">
+          <div className="bg-slate-50 p-4">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
               <Clock className="w-3.5 h-3.5 text-amber-600" />
               Lịch hẹn đang chờ
             </div>
-            <div className="text-2xl font-extrabold text-amber-950 mt-1">
+            <div className="mt-1 font-display text-2xl font-semibold text-ink-950">
               {timeMetrics.pendingBookings}
             </div>
-            <div className="text-2xs text-amber-600 mt-0.5">
+            <div className="mt-0.5 text-xs text-slate-500">
               Đang chờ xếp lịch
             </div>
           </div>
 
           {/* 4. Cancelled Bookings */}
-          <div className="p-4 rounded-xl bg-slate-100/80 border border-slate-200">
-            <div className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wider text-slate-600">
+          <div className="bg-slate-50 p-4">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
               <Ban className="w-3.5 h-3.5 text-slate-500" />
               Lịch hẹn đã hủy
             </div>
-            <div className="text-2xl font-extrabold text-slate-800 mt-1">
+            <div className="mt-1 font-display text-2xl font-semibold text-ink-950">
               {timeMetrics.cancelledBookings}
             </div>
-            <div className="text-2xs text-slate-500 mt-0.5">
+            <div className="mt-0.5 text-xs text-slate-500">
               Đổi lịch / Hủy bỏ
             </div>
           </div>
 
           {/* 5. Completed Tests */}
-          <div className="p-4 rounded-xl bg-teal-50/70 border border-teal-200">
-            <div className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wider text-teal-700">
+          <div className="bg-slate-50 p-4">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
               <FileCheck className="w-3.5 h-3.5 text-teal-600" />
               Bài đánh giá đã hoàn thành
             </div>
-            <div className="text-2xl font-extrabold text-teal-950 mt-1">
+            <div className="mt-1 font-display text-2xl font-semibold text-ink-950">
               {timeMetrics.completedTests}
             </div>
-            <div className="text-2xs text-teal-600 mt-0.5">
+            <div className="mt-0.5 text-xs text-slate-500">
               PHQ-9, GAD-7, DASS-21
             </div>
           </div>
 
           {/* 6. Pending Tests */}
-          <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200">
-            <div className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wider text-indigo-700">
-              <FileText className="w-3.5 h-3.5 text-indigo-600" />
+          <div className="bg-slate-50 p-4">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+              <FileText className="h-3.5 w-3.5 text-academic-700" />
               Bài đánh giá đang chờ
             </div>
-            <div className="text-2xl font-extrabold text-indigo-950 mt-1">
+            <div className="mt-1 font-display text-2xl font-semibold text-ink-950">
               {timeMetrics.pendingTests}
             </div>
-            <div className="text-2xs text-indigo-600 mt-0.5">
+            <div className="mt-0.5 text-xs text-slate-500">
               Bộ câu hỏi tự đánh giá
             </div>
           </div>
         </div>
 
         {/* Privacy Note Reminder Banner */}
-        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-2xs text-slate-500 flex items-start gap-2">
+        <div className="flex items-start gap-2 border-l-2 border-rule bg-slate-50 px-3 py-3 text-xs text-slate-500">
           <ShieldCheck className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
           <p className="leading-relaxed">
             <strong>Chính sách bảo mật:</strong> Theo mô hình quản trị dữ liệu của Trung tâm Tham vấn Tâm lý Học đường, mọi thông tin định danh học sinh, ghi chú đánh giá tâm lý thô và bản ghi nội dung phiên tham vấn đều không xuất hiện trên bảng phân tích quản trị. Hệ thống chỉ hiển thị các chỉ số vận hành đã tổng hợp.
           </p>
         </div>
-      </div>
+      </section>
 
       {canManageCounselors && isEditOpen && (
         <CounselorFormModal
@@ -627,42 +616,15 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
       )}
 
       {canManageCounselors && isDeactivateOpen && (
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="deactivate-counselor-title"
-        >
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
-            <div className="flex items-start gap-3">
-              <div className="rounded-xl bg-rose-100 p-2 text-rose-700">
-                <UserMinus className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 id="deactivate-counselor-title" className="text-base font-bold text-slate-900">
-                  Ngừng hoạt động của {counselor.name}?
-                </h2>
-                <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                  Hồ sơ tư vấn viên vẫn được lưu giữ và trạng thái sẽ chuyển thành “Ngừng hoạt động”. Tư vấn viên sẽ không còn xuất hiện trong danh sách hiệu suất đang hoạt động.
-                </p>
-              </div>
-            </div>
-            {deactivateError && (
-              <div role="alert" className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
-                {deactivateError}
-              </div>
-            )}
-            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                disabled={isDeactivating}
-                onClick={() => setIsDeactivateOpen(false)}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              >
-                Hủy
-              </button>
-              <button
-                type="button"
+        <ModalSurface
+          title={`Ngừng hoạt động của ${counselor.name}?`}
+          onClose={() => setIsDeactivateOpen(false)}
+          className="max-w-md"
+          footer={(
+            <>
+              <Button disabled={isDeactivating} onClick={() => setIsDeactivateOpen(false)}>Hủy</Button>
+              <Button
+                variant="danger"
                 disabled={isDeactivating}
                 onClick={async () => {
                   setIsDeactivating(true);
@@ -677,14 +639,25 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
                     setIsDeactivating(false);
                   }
                 }}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-60"
               >
                 {isDeactivating ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <UserMinus className="h-4 w-4" />}
                 Xác nhận ngừng hoạt động
-              </button>
+              </Button>
+            </>
+          )}
+        >
+            <div className="flex items-start gap-3">
+              <div className="rounded bg-red-50 p-2 text-brick-700">
+                <UserMinus className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm leading-relaxed text-slate-600">
+                  Hồ sơ tư vấn viên vẫn được lưu giữ và trạng thái sẽ chuyển thành “Ngừng hoạt động”. Tư vấn viên sẽ không còn xuất hiện trong danh sách hiệu suất đang hoạt động.
+                </p>
+              </div>
             </div>
-          </div>
-        </div>
+            {deactivateError && <Alert tone="error" className="mt-4">{deactivateError}</Alert>}
+        </ModalSurface>
       )}
     </div>
   );

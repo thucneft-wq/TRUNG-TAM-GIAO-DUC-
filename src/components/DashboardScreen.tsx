@@ -6,12 +6,7 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  ArrowRight,
-  ShieldCheck,
-  Sparkles,
-  Layers,
   ChevronRight,
-  Filter,
   FlaskConical,
   Download,
   AlertTriangle,
@@ -20,6 +15,7 @@ import { Counselor, DashboardMetrics, TimeRange, ScreenType } from '../types';
 import { getCounselorEvaluation, PERFORMANCE_KPI_COUNT } from '../domain/kpiPolicy';
 import { KpiCard } from './KpiCard';
 import { CounselorPassChart, BookingsChart } from './Charts';
+import { Button } from './ui/Primitives';
 
 interface DashboardScreenProps {
   metrics: DashboardMetrics;
@@ -81,61 +77,49 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   };
 
   return (
-    <div id="screen-dashboard" className="space-y-6">
-      {/* Top Banner: Digital Twin State & Last Updated Info */}
-      <div className="bg-gradient-to-r from-blue-900 via-slate-900 to-teal-900 rounded-2xl p-5 sm:p-6 text-white shadow-md border border-blue-800/40 relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-80 h-full bg-teal-500/10 blur-2xl pointer-events-none" />
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 relative z-10">
+    <div id="screen-dashboard" className="space-y-8">
+      <section className="border-b border-rule pb-6">
+        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="px-2.5 py-0.5 rounded-full text-2xs font-bold uppercase tracking-wider bg-teal-400/20 text-teal-300 border border-teal-400/30 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-ping" />
-                Dữ liệu phân tích đã sẵn sàng
-              </span>
-              <span className="text-2xs text-slate-300 font-mono">
-                {metrics.syncNode}
-              </span>
+            <div className="mb-3 flex items-center gap-2 text-xs text-pine-700">
+              <span className="size-2 rounded-full bg-pine-700" aria-hidden="true" />
+              Dữ liệu phân tích đã sẵn sàng
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-              Tổng quan Sức khỏe Tâm lý Học đường
+            <h2 className="page-title">
+              Tổng quan vận hành trung tâm
             </h2>
-            <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-              Theo dõi dữ liệu quản trị theo thời gian thực về tải ca học sinh, số phiên tham vấn và chuẩn KPI của tư vấn viên.
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+              Theo dõi tải ca học sinh, lịch tham vấn và chất lượng làm việc của đội ngũ trong {getTimeLabel().toLowerCase()}.
             </p>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-md rounded-xl p-3.5 border border-white/15 shrink-0 flex flex-col justify-center text-xs">
-            <div className="flex items-center gap-1.5 text-teal-300 font-semibold text-2xs uppercase tracking-wider">
-              <Clock className="w-3.5 h-3.5" />
-              Cập nhật gần nhất
+          <div className="grid shrink-0 gap-2 border-l-2 border-academic-700 pl-4 text-xs text-slate-600 sm:grid-cols-2 sm:gap-x-6 md:grid-cols-1">
+            <div className="flex items-center gap-2">
+              <Clock className="size-4 text-academic-700" />
+              <span>Cập nhật {formatLastUpdated(metrics.lastUpdated)}</span>
             </div>
-            <div className="font-mono text-white font-medium mt-0.5">
-              {formatLastUpdated(metrics.lastUpdated)}
-            </div>
-            <div className="text-2xs text-slate-300 mt-1 flex items-center justify-between gap-3">
-              <span>Kỳ báo cáo: <strong>{getTimeLabel()}</strong></span>
+            <div>
+              Nguồn đồng bộ: <span className="font-medium text-ink-950">{metrics.syncNode}</span>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* 5 Mandatory KPI Cards */}
-      <div>
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-600">
-            Các chỉ số hiệu suất chính ({getTimeLabel()})
+      <section>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="section-title">
+            Chỉ số vận hành
           </h3>
           <div className="flex items-center gap-2">
-            <span className="text-2xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded font-mono">
-              Cập nhật theo thời gian thực
-            </span>
-            <button type="button" disabled={isExporting} onClick={onExport} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-60">
+            <span className="hidden text-xs text-slate-500 sm:inline">Kỳ: {getTimeLabel()}</span>
+            <Button size="sm" variant="primary" disabled={isExporting} onClick={onExport}>
               <Download className="h-3.5 w-3.5" /> {isExporting ? 'Đang xuất…' : 'Xuất tổng quan'}
-            </button>
+            </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 border-y border-rule bg-white sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {/* 1. Total Students */}
           <KpiCard
             id="kpi-card-total-students"
@@ -226,10 +210,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             onClick={() => handleKpiFilterClick('not-pass')}
           />
         </div>
-      </div>
+      </section>
 
       {/* Two Mandatory Charts: Counselor Pass/Not Pass & Booking Status Distribution */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-2">
         {/* Chart 1: Pass/Not Pass Counselor Chart */}
         <CounselorPassChart
           passed={metrics.passedCounselors}
@@ -243,33 +227,28 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       </div>
 
       {/* Counselor Fast-Access Roster Preview & Performance Jump */}
-      <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+      <section className="border-y border-rule bg-white">
+        <div className="flex flex-col justify-between gap-3 border-b border-rule px-4 py-4 sm:flex-row sm:items-center sm:px-5">
           <div>
-            <h4 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
-              Danh sách trạng thái tư vấn viên
-              <span className="text-2xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono">
-                {counselors.length} nhân sự
-              </span>
+            <h4 className="text-base font-semibold text-ink-950">
+              Trạng thái đội ngũ tư vấn
             </h4>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Xem nhanh kết quả đánh giá 5 KPI của từng tư vấn viên trong {getTimeLabel()}
+            <p className="mt-1 text-xs text-slate-500">
+              {counselors.length} tư vấn viên được đánh giá trong {getTimeLabel().toLowerCase()}.
             </p>
           </div>
 
-          <button
+          <Button
             id="btn-view-all-counselors"
-            type="button"
             onClick={() => onNavigate('counselors')}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors self-start sm:self-auto cursor-pointer"
+            size="sm"
+            className="self-start sm:self-auto"
           >
-            <span>Mở bảng hiệu suất tư vấn viên</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+            Xem toàn bộ đội ngũ
+          </Button>
         </div>
 
-        {/* Mini Roster Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="divide-y divide-rule">
           {counselors.map((c) => {
             const evaluation = getCounselorEvaluation(c, timeRange);
             const isPass = evaluation.overallStatus === 'Pass';
@@ -283,15 +262,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                   onSelectCounselor(c);
                   onNavigate('counselor-detail');
                 }}
-                className="p-3.5 rounded-lg border border-slate-200 hover:border-blue-400 hover:shadow-xs bg-slate-50/50 hover:bg-white transition-all cursor-pointer group flex flex-col justify-between text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="group grid w-full gap-3 px-4 py-4 text-left transition-colors hover:bg-teal-50/60 sm:grid-cols-[minmax(0,1.4fr)_minmax(12rem,0.8fr)_auto] sm:items-center sm:px-5"
               >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-2xs font-mono font-bold text-slate-500 bg-white border border-slate-200 px-1.5 py-0.5 rounded">
-                      {c.externalId ?? 'Chưa có mã'}
-                    </span>
+                <div className="min-w-0">
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className="font-mono text-xs text-slate-500">{c.externalId ?? 'Chưa có mã'}</span>
                     <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-bold ${
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-semibold sm:hidden ${
                         isPass
                           ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                           : isInsufficientData
@@ -310,27 +287,39 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                     </span>
                   </div>
 
-                  <h5 className="text-xs font-bold text-slate-900 group-hover:text-blue-700 transition-colors">
+                  <h5 className="truncate text-sm font-semibold text-ink-950 group-hover:text-academic-700">
                     {c.name}
                   </h5>
-                  <p className="text-2xs text-slate-500 truncate mt-0.5">
+                  <p className="mt-0.5 truncate text-xs text-slate-500">
                     {c.department}
                   </p>
                 </div>
 
-                <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-2xs">
-                  <span className="text-slate-500 font-medium">
-                    KPI hiệu suất: <strong className="text-slate-800">{evaluation.passedKpiCount}/{PERFORMANCE_KPI_COUNT} đạt</strong>
+                <div className="flex items-center justify-between gap-3 sm:block">
+                  <span className="text-xs text-slate-500">
+                    KPI hiệu suất <strong className="font-semibold text-ink-950">{evaluation.passedKpiCount}/{PERFORMANCE_KPI_COUNT} đạt</strong>
                   </span>
-                  <span className="text-blue-600 font-semibold group-hover:underline flex items-center gap-0.5">
-                    Chi tiết <ChevronRight className="w-3 h-3" />
+                  <span
+                    className={`hidden w-fit items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-semibold sm:mt-2 sm:inline-flex ${
+                      isPass
+                        ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
+                        : isInsufficientData
+                          ? 'border border-amber-200 bg-amber-50 text-amber-800'
+                          : 'border border-rose-200 bg-rose-50 text-rose-800'
+                    }`}
+                  >
+                    {isPass ? 'Đạt' : isInsufficientData ? 'Chưa đủ dữ liệu' : 'Cần rà soát'}
                   </span>
                 </div>
+
+                <span className="flex items-center gap-1 text-xs font-semibold text-academic-700">
+                  Chi tiết <ChevronRight className="size-4" />
+                </span>
               </button>
             );
           })}
         </div>
-      </div>
+      </section>
     </div>
   );
 };

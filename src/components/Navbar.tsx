@@ -6,6 +6,7 @@ import {
   LoaderCircle,
 } from 'lucide-react';
 import { AdminUser, TimeRange, ScreenType } from '../types';
+import { IconButton } from './ui/Primitives';
 
 interface NavbarProps {
   currentScreen: ScreenType;
@@ -66,63 +67,55 @@ export const Navbar: React.FC<NavbarProps> = ({
   })();
 
   return (
-    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-slate-200 shadow-xs">
-      <div className="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-30 border-b border-rule bg-white">
+      <div className="flex min-h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:min-h-[4.5rem] lg:px-8">
         {/* Left Side: Mobile Menu Button & Screen Title */}
-        <div className="flex items-center gap-3">
-          <button
+        <div className="min-w-0 flex flex-1 items-center gap-3">
+          <IconButton
             id="btn-toggle-sidebar-mobile"
-            type="button"
             onClick={onToggleSidebar}
             aria-controls="app-sidebar"
             aria-expanded={isSidebarOpen}
-            className="lg:hidden p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            className="-ml-2 lg:hidden"
             aria-label="Bật hoặc tắt trình đơn điều hướng"
           >
-            <Menu className="w-5 h-5" />
-          </button>
+            <Menu className="size-5" />
+          </IconButton>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-2xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                Phân tích Bản sao số
-              </span>
+          <div className="min-w-0">
+            <div className="mb-0.5 flex items-center gap-2">
               <span
                 title={formattedLastUpdated ? `Cập nhật lần cuối: ${formattedLastUpdated}` : undefined}
-                className={`hidden sm:inline-flex items-center gap-1 text-2xs font-medium px-2 py-0.5 rounded border ${
-                  dataSource === 'api'
-                    ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
-                    : 'text-amber-700 bg-amber-50 border-amber-200'
-                }`}
+                className="hidden items-center gap-1.5 text-xs text-slate-500 sm:inline-flex"
               >
                 {isDataLoading ? (
-                  <LoaderCircle className="w-3 h-3 animate-spin" />
+                  <LoaderCircle className="size-3 animate-spin text-academic-700" />
                 ) : (
                   <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      dataSource === 'api' ? 'bg-emerald-500' : 'bg-amber-500'
+                    className={`size-1.5 rounded-full ${
+                      dataSource === 'api' ? 'bg-pine-700' : 'bg-amber-500'
                     }`}
                   />
                 )}
                 {isDataLoading
-                  ? 'Đang làm mới dữ liệu'
+                  ? 'Đang cập nhật dữ liệu'
                   : dataSource === 'api'
-                    ? 'Đã kết nối API hệ thống'
-                    : 'Dữ liệu demo cục bộ'}
+                    ? 'Hệ thống đang kết nối'
+                    : 'Dữ liệu cục bộ'}
               </span>
             </div>
-            <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight flex items-center gap-1.5 mt-0.5">
+            <h1 className="truncate font-display text-sm font-semibold text-ink-950 sm:max-w-[28rem] sm:text-base">
               {currentScreen === 'dashboard' && 'Tổng quan phân tích trung tâm'}
               {currentScreen === 'knowledge-graph' && 'Không gian Knowledge Graph'}
               {currentScreen === 'counselor-management' && 'Quản lý hồ sơ và tài khoản tư vấn viên'}
               {currentScreen === 'counselors' && 'Hiệu suất tư vấn viên và kiểm định KPI'}
-              {currentScreen === 'students' && 'Quản lý hồ sơ Student'}
+              {currentScreen === 'students' && 'Quản lý hồ sơ học sinh'}
               {currentScreen === 'student-trends' && 'Xu hướng tình trạng học viên'}
               {currentScreen === 'feedback-analytics' && 'Phân tích phản hồi học viên'}
               {currentScreen === 'audit-logs' && 'Nhật ký bảo mật và thay đổi'}
               {currentScreen === 'counselor-detail' && (
                 <>
-                  <span className="text-slate-500 font-normal">Tư vấn viên:</span>
+                  <span className="font-sans font-normal text-slate-500">Tư vấn viên: </span>
                   <span>{selectedCounselorName || 'Chi tiết hiệu suất'}</span>
                 </>
               )}
@@ -131,25 +124,25 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Right Side: Time Filter, Twin Status & Admin Avatar */}
-        <div className="flex items-center gap-3">
+        <div className="shrink-0 items-center gap-3 flex">
           {/* Time Filter Tabs */}
           {showTimeFilter && <div
             id="time-range-filter-group"
-            className="hidden md:flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200/80"
+            className="hidden items-center border-l border-rule pl-4 md:flex"
           >
-            <span className="text-2xs font-semibold uppercase text-slate-600 px-2 flex items-center gap-1">
-              <Calendar className="w-3 h-3 text-slate-500" />
-              Kỳ:
+            <span className="mr-2 flex items-center gap-1.5 text-xs font-medium text-slate-500">
+              <Calendar className="size-3.5" />
+              Kỳ báo cáo
             </span>
             <button
               id="time-filter-this-month"
               type="button"
               onClick={() => onTimeRangeChange('this-month')}
               aria-pressed={timeRange === 'this-month'}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+              className={`min-h-9 border-b-2 px-3 text-xs font-semibold transition-colors ${
                 timeRange === 'this-month'
-                  ? 'bg-white text-blue-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'border-academic-700 text-academic-700'
+                  : 'border-transparent text-slate-600 hover:text-ink-950'
               }`}
             >
               Tháng này
@@ -159,10 +152,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               type="button"
               onClick={() => onTimeRangeChange('last-month')}
               aria-pressed={timeRange === 'last-month'}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+              className={`min-h-9 border-b-2 px-3 text-xs font-semibold transition-colors ${
                 timeRange === 'last-month'
-                  ? 'bg-white text-blue-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'border-academic-700 text-academic-700'
+                  : 'border-transparent text-slate-600 hover:text-ink-950'
               }`}
             >
               Tháng trước
@@ -172,10 +165,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               type="button"
               onClick={() => onTimeRangeChange('all-time')}
               aria-pressed={timeRange === 'all-time'}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+              className={`min-h-9 border-b-2 px-3 text-xs font-semibold transition-colors ${
                 timeRange === 'all-time'
-                  ? 'bg-white text-blue-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'border-academic-700 text-academic-700'
+                  : 'border-transparent text-slate-600 hover:text-ink-950'
               }`}
             >
               Toàn thời gian
@@ -183,38 +176,37 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>}
 
           {/* Admin Profile & Logout */}
-          <div className="flex items-center gap-2 pl-2 sm:border-l sm:border-slate-200">
+          <div className="flex items-center gap-2 pl-1 sm:border-l sm:border-rule sm:pl-3">
             <div className="hidden sm:flex flex-col text-right">
-              <span className="text-xs font-bold text-slate-800">{adminUser.name}</span>
+              <span className="text-xs font-semibold text-ink-950">{adminUser.name}</span>
               <span className="text-2xs text-slate-500">{adminUser.role}</span>
             </div>
-            <div className="w-8 h-8 rounded-full bg-blue-700 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+            <div className="flex size-9 items-center justify-center rounded border border-academic-700 bg-academic-700 text-xs font-semibold text-white">
               {initials || 'AD'}
             </div>
-            <button
+            <IconButton
               id="btn-nav-logout"
-              type="button"
               onClick={onLogout}
               title="Đăng xuất khỏi cổng quản trị"
               aria-label="Đăng xuất khỏi cổng quản trị"
-              className="p-2 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+              className="hidden text-slate-500 hover:bg-red-50 hover:text-brick-700 sm:inline-flex"
             >
-              <LogOut className="w-4 h-4" />
-            </button>
+              <LogOut className="size-4" />
+            </IconButton>
           </div>
         </div>
       </div>
 
       {/* Mobile Time Filter Bar */}
-      {showTimeFilter && <div className="md:hidden px-4 py-2 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-        <span className="text-2xs font-semibold text-slate-500">Khoảng thời gian:</span>
-        <div className="flex items-center gap-1 bg-slate-200/80 p-0.5 rounded-lg">
+      {showTimeFilter && <div className="flex items-center border-t border-rule bg-white px-4 md:hidden">
+        <span className="mr-2 shrink-0 text-xs text-slate-500">Kỳ</span>
+        <div className="grid min-w-0 flex-1 grid-cols-3">
           <button
             type="button"
             onClick={() => onTimeRangeChange('this-month')}
             aria-pressed={timeRange === 'this-month'}
-            className={`px-2 py-0.5 text-2xs font-semibold rounded ${
-              timeRange === 'this-month' ? 'bg-white text-blue-700' : 'text-slate-600'
+            className={`min-h-10 border-b-2 px-1 text-xs font-semibold ${
+              timeRange === 'this-month' ? 'border-academic-700 text-academic-700' : 'border-transparent text-slate-600'
             }`}
           >
             Tháng này
@@ -223,8 +215,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             type="button"
             onClick={() => onTimeRangeChange('last-month')}
             aria-pressed={timeRange === 'last-month'}
-            className={`px-2 py-0.5 text-2xs font-semibold rounded ${
-              timeRange === 'last-month' ? 'bg-white text-blue-700' : 'text-slate-600'
+            className={`min-h-10 border-b-2 px-1 text-xs font-semibold ${
+              timeRange === 'last-month' ? 'border-academic-700 text-academic-700' : 'border-transparent text-slate-600'
             }`}
           >
             Tháng trước
@@ -233,8 +225,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             type="button"
             onClick={() => onTimeRangeChange('all-time')}
             aria-pressed={timeRange === 'all-time'}
-            className={`px-2 py-0.5 text-2xs font-semibold rounded ${
-              timeRange === 'all-time' ? 'bg-white text-blue-700' : 'text-slate-600'
+            className={`min-h-10 border-b-2 px-1 text-xs font-semibold ${
+              timeRange === 'all-time' ? 'border-academic-700 text-academic-700' : 'border-transparent text-slate-600'
             }`}
           >
             Toàn thời gian

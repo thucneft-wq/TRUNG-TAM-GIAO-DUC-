@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { AlertTriangle, LoaderCircle, RefreshCw } from 'lucide-react';
+import { LoaderCircle, RefreshCw } from 'lucide-react';
 import {
   AnalyticsFilterOptions,
   AnalyticsFilters,
@@ -54,6 +54,7 @@ import { AuditLogsScreen } from './components/AuditLogsScreen';
 import { StudentManagementScreen } from './components/StudentManagementScreen';
 import { CounselorSheetManagementScreen } from './components/CounselorSheetManagementScreen';
 import { KnowledgeGraphScreen } from './components/KnowledgeGraphScreen';
+import { Alert, Button } from './components/ui/Primitives';
 
 const EMPTY_FILTER_OPTIONS: AnalyticsFilterOptions = {
   counselors: [],
@@ -120,6 +121,7 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(Boolean(session));
   const [isStudentsLoading, setIsStudentsLoading] = useState(Boolean(session));
+  const [studentsError, setStudentsError] = useState<string | null>(null);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [initialCounselorFilter, setInitialCounselorFilter] =
@@ -160,11 +162,12 @@ export default function App() {
     }
 
     let isCurrentRequest = true;
+    const controller = new AbortController();
     setIsDataLoading(true);
     setDataError(null);
     setDataWarning(null);
 
-    loadAdminData(session, timeRange)
+    loadAdminData(session, timeRange, controller.signal)
       .then((result) => {
         if (!isCurrentRequest) return;
         setCounselors(result.counselors);
@@ -189,6 +192,7 @@ export default function App() {
 
     return () => {
       isCurrentRequest = false;
+      controller.abort();
     };
   }, [session, timeRange, refreshKey]);
 
@@ -198,10 +202,11 @@ export default function App() {
       return;
     }
     let isCurrentRequest = true;
+    const controller = new AbortController();
     setIsAnalyticsLoading(true);
     setAnalyticsError(null);
 
-    loadAnalyticsData(session, timeRange, analyticsFilters)
+    loadAnalyticsData(session, timeRange, analyticsFilters, controller.signal)
       .then((result) => {
         if (!isCurrentRequest) return;
         setFilterOptions(result.filterOptions);
@@ -220,21 +225,23 @@ export default function App() {
 
     return () => {
       isCurrentRequest = false;
+      controller.abort();
     };
   }, [session, timeRange, analyticsFilters, refreshKey]);
 
   useEffect(() => {
     if (!session) return;
     let isCurrentRequest = true;
+    const controller = new AbortController();
     setIsStudentsLoading(true);
-    setDataError(null);
-    loadStudents(session)
+    setStudentsError(null);
+    loadStudents(session, controller.signal)
       .then((result) => {
         if (isCurrentRequest) setStudents(result);
       })
       .catch((error) => {
         if (isCurrentRequest) {
-          setDataError(error instanceof Error ? error.message : 'Không thể tải danh sách Student.');
+          setStudentsError(error instanceof Error ? error.message : 'Không thể tải danh sách học sinh.');
         }
       })
       .finally(() => {
@@ -242,28 +249,40 @@ export default function App() {
       });
     return () => {
       isCurrentRequest = false;
+      controller.abort();
     };
   }, [session, refreshKey]);
 
   useEffect(() => {
     if (!session) return;
+    const activeControllers = new Set<AbortController>();
     const intervalId = window.setInterval(() => {
-      loadStudents(session).then(setStudents).catch(() => {
+      const controller = new AbortController();
+      activeControllers.add(controller);
+      let pendingRequests = session.user.roleCode === 'admin' ? 2 : 1;
+      const markRequestFinished = () => {
+        pendingRequests -= 1;
+        if (pendingRequests === 0) activeControllers.delete(controller);
+      };
+      loadStudents(session, controller.signal).then(setStudents).catch(() => {
         // Keep the last successful list; the next interval retries automatically.
-      });
+      }).finally(markRequestFinished);
       if (session.user.roleCode === 'admin') {
-        loadAdminData(session, timeRange).then((result) => {
+        loadAdminData(session, timeRange, controller.signal).then((result) => {
           setCounselors(result.counselors);
           setRemoteDashboard(result.dashboard ?? null);
           setDataSource(result.source);
           setDataWarning(result.warning ?? null);
         }).catch(() => {
           // Keep the last successful Counselor list and retry on the next interval.
-        });
+        }).finally(markRequestFinished);
       }
     }, studentSyncIntervalMs);
-    return () => window.clearInterval(intervalId);
-  }, [session, timeRange]);
+    return () => {
+      window.clearInterval(intervalId);
+      activeControllers.forEach((controller) => controller.abort());
+    };
+  }, [session, timeRange, refreshKey]);
 
   useEffect(() => {
     if (
@@ -275,11 +294,18 @@ export default function App() {
 
     let isActive = true;
     let isRequestRunning = false;
+    let activeController: AbortController | null = null;
     const refreshFeedback = async () => {
       if (isRequestRunning) return;
       isRequestRunning = true;
+      activeController = new AbortController();
       try {
-        const result = await loadAnalyticsData(session, timeRange, analyticsFilters);
+        const result = await loadAnalyticsData(
+          session,
+          timeRange,
+          analyticsFilters,
+          activeController.signal,
+        );
         if (!isActive) return;
         setFilterOptions(result.filterOptions);
         setStudentTrends(result.studentTrends);
@@ -292,19 +318,20 @@ export default function App() {
         );
       } finally {
         isRequestRunning = false;
+        activeController = null;
       }
     };
 
-    void refreshFeedback();
     const intervalId = window.setInterval(() => void refreshFeedback(), analyticsSyncIntervalMs);
     const refreshOnFocus = () => void refreshFeedback();
     window.addEventListener('focus', refreshOnFocus);
     return () => {
       isActive = false;
+      activeController?.abort();
       window.clearInterval(intervalId);
       window.removeEventListener('focus', refreshOnFocus);
     };
-  }, [session, currentScreen, timeRange, analyticsFilters]);
+  }, [session, currentScreen, timeRange, analyticsFilters, refreshKey]);
 
   useEffect(() => {
     if (session?.user.roleCode === 'counselor' && currentScreen !== 'students') {
@@ -327,9 +354,15 @@ export default function App() {
 
   useEffect(() => {
     if (!session || session.user.roleCode !== 'admin' || currentScreen !== 'audit-logs') return;
-    loadAuditLogs(session).then(setAuditLogs).catch((error) => {
-      setAnalyticsError(error instanceof Error ? error.message : 'Không thể tải nhật ký audit.');
-    });
+    const controller = new AbortController();
+    loadAuditLogs(session, controller.signal)
+      .then(setAuditLogs)
+      .catch((error) => {
+        if (!controller.signal.aborted) {
+          setAnalyticsError(error instanceof Error ? error.message : 'Không thể tải nhật ký audit.');
+        }
+      });
+    return () => controller.abort();
   }, [session, currentScreen, refreshKey]);
 
   useEffect(() => {
@@ -365,6 +398,7 @@ export default function App() {
     setSelectedCounselorId(null);
     setRemoteDashboard(null);
     setDataError(null);
+    setStudentsError(null);
     setDataWarning(null);
     setAnalyticsError(null);
     setAuditLogs([]);
@@ -465,13 +499,30 @@ export default function App() {
   }
 
   const isAdmin = session.user.roleCode === 'admin';
-  const isPageLoading = isStudentsLoading || (isAdmin && (isDataLoading || isAnalyticsLoading));
+  const isAnalyticsScreen = currentScreen === 'student-trends'
+    || currentScreen === 'feedback-analytics'
+    || currentScreen === 'audit-logs';
+  const isAdminDataScreen = currentScreen === 'dashboard'
+    || currentScreen === 'counselor-management'
+    || currentScreen === 'counselors'
+    || currentScreen === 'counselor-detail';
+  const isPageLoading = currentScreen === 'students'
+    ? isStudentsLoading && !studentsError
+    : isAnalyticsScreen
+      ? isAnalyticsLoading && !analyticsError
+      : isAdminDataScreen
+        ? isDataLoading && !dataError
+        : false;
+  const isAnyDataLoading = (isStudentsLoading && !studentsError)
+    || (isAdmin && isDataLoading && !dataError)
+    || (isAdmin && isAnalyticsLoading && !analyticsError);
+  const visibleDataError = currentScreen === 'students' ? studentsError : dataError;
 
   return (
-    <div className="min-h-screen bg-slate-100/70 text-slate-800 flex">
+    <div className="flex min-h-screen bg-paper text-ink-950">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-blue-700 focus:shadow-lg"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:rounded focus:border focus:border-academic-700 focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-academic-700 focus:shadow-lg"
       >
         Chuyển đến nội dung chính
       </a>
@@ -484,12 +535,12 @@ export default function App() {
         onLogout={handleLogout}
         selectedCounselorId={selectedCounselor?.externalId}
         dataSource={dataSource}
-        isDataLoading={isPageLoading}
+        isDataLoading={isAnyDataLoading}
         roleCode={session.user.roleCode ?? 'admin'}
         crudDemoMode={isCrudDemoMode}
       />
 
-      <div className="flex-1 lg:pl-72 flex flex-col min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col lg:pl-64">
         <Navbar
           currentScreen={currentScreen}
           timeRange={timeRange}
@@ -501,55 +552,47 @@ export default function App() {
           selectedCounselorName={selectedCounselor?.name}
           adminUser={session.user}
           dataSource={dataSource}
-          isDataLoading={isPageLoading}
+          isDataLoading={isAnyDataLoading}
         />
 
         <main
           id="main-content"
           tabIndex={-1}
           aria-busy={isPageLoading}
-          className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto focus:outline-none"
+          className="mx-auto w-full max-w-[94rem] flex-1 px-4 py-5 focus:outline-none sm:px-6 sm:py-7 lg:px-8 lg:py-8"
         >
-          {dataError && (
-            <div
-              role="alert"
-              className="mb-5 flex flex-col gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900 sm:flex-row sm:items-center sm:justify-between"
+          {visibleDataError && (
+            <Alert
+              tone="error"
+              title="Không thể tải dữ liệu quản trị."
+              className="mb-5"
+              action={(
+                <Button size="sm" onClick={() => setRefreshKey((key) => key + 1)}>
+                  <RefreshCw className="size-3.5" /> Thử lại
+                </Button>
+              )}
             >
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
-                <span><strong>Không thể tải dữ liệu quản trị.</strong> {dataError}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setRefreshKey((key) => key + 1)}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100"
-              >
-                <RefreshCw className="h-3.5 w-3.5" /> Thử lại
-              </button>
-            </div>
+              {visibleDataError}
+            </Alert>
           )}
 
           {dataWarning && (
-            <div className="mb-5 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-              <span>{dataWarning}</span>
-            </div>
+            <Alert tone="warning" className="mb-5 text-xs">{dataWarning}</Alert>
           )}
 
-          {analyticsError && (
-            <div role="alert" className="mb-5 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-900">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
-              <span><strong>Analytics:</strong> {analyticsError}</span>
-            </div>
+          {analyticsError && isAnalyticsScreen && (
+            <Alert tone="error" title="Không thể tải dữ liệu phân tích." className="mb-5 text-xs">
+              {analyticsError}
+            </Alert>
           )}
 
           {isPageLoading && (currentScreen === 'students' ? students.length === 0 : isAdmin && counselors.length === 0) ? (
-            <div className="flex min-h-80 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex min-h-80 items-center justify-center border-y border-rule bg-white">
               <div className="text-center">
-                <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-blue-600" />
-                <p className="mt-3 text-sm font-semibold text-slate-800">
+                <LoaderCircle className="mx-auto size-7 animate-spin text-academic-700" />
+                <p className="mt-3 text-sm font-semibold text-ink-950">
                   {currentScreen === 'students'
-                    ? 'Đang tải danh sách Student'
+                    ? 'Đang tải danh sách học sinh'
                     : isCrudDemoMode
                       ? 'Đang tải danh sách tư vấn viên'
                       : 'Đang tải dữ liệu phân tích tư vấn viên'}
@@ -564,7 +607,7 @@ export default function App() {
               </div>
             </div>
           ) : (
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="wait" initial={false}>
               {currentScreen === 'students' && (
                 <motion.div key="screen-students" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
                   <StudentManagementScreen

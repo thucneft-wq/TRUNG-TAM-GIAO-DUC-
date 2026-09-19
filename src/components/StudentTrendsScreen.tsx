@@ -37,19 +37,18 @@ export const StudentTrendsScreen: React.FC<StudentTrendsScreenProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl bg-gradient-to-r from-indigo-900 via-blue-900 to-cyan-900 p-6 text-white shadow-lg">
+      <header className="border-b border-rule pb-5">
         <div className="flex items-start gap-3">
-          <div className="rounded-xl bg-white/10 p-2.5"><BrainCircuit className="h-6 w-6" /></div>
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-teal-200 bg-teal-50 text-academic-700"><BrainCircuit className="h-5 w-5" /></div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-cyan-200">FR-ADM-05</p>
-            <h2 className="mt-1 text-xl font-bold">Xu hướng tình trạng học viên</h2>
-            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-blue-100">
+            <h2 className="page-title">Xu hướng tình trạng học viên</h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
               Dữ liệu assessment và kết quả test được tổng hợp theo kỳ; không hiển thị danh tính,
               nội dung phiên tư vấn hoặc ghi chú tâm lý thô.
             </p>
           </div>
         </div>
-      </div>
+      </header>
 
       <AnalyticsFilterBar
         filters={filters}
@@ -61,9 +60,9 @@ export const StudentTrendsScreen: React.FC<StudentTrendsScreenProps> = ({
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <MetricCard icon={<Activity />} label="Assessment" value={data.suppressed ? 'Đã ẩn' : data.totalAssessments} tone="blue" />
-        <MetricCard icon={<FileCheck2 />} label="Kết quả test" value={data.suppressed ? 'Đã ẩn' : data.totalTestResults} tone="teal" />
-        <MetricCard icon={<UsersRound />} label="Cỡ mẫu sự kiện" value={data.suppressed ? `< ${data.minimumSampleSize}` : data.sampleSize} tone="indigo" />
+        <MetricCard icon={<Activity />} label="Assessment" value={data.suppressed ? 'Đã ẩn' : data.totalAssessments} />
+        <MetricCard icon={<FileCheck2 />} label="Kết quả test" value={data.suppressed ? 'Đã ẩn' : data.totalTestResults} />
+        <MetricCard icon={<UsersRound />} label="Cỡ mẫu sự kiện" value={data.suppressed ? `< ${data.minimumSampleSize}` : data.sampleSize} />
       </div>
 
       {data.suppressed ? (
@@ -72,7 +71,7 @@ export const StudentTrendsScreen: React.FC<StudentTrendsScreenProps> = ({
         <EmptyState />
       ) : (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="rounded-lg border border-rule bg-white p-5">
             <h3 className="text-sm font-bold text-slate-900">Diễn biến theo thời gian</h3>
             <p className="mt-1 text-xs text-slate-500">Số sự kiện đã hoàn thành trong từng kỳ.</p>
             <div className="mt-5 space-y-4">
@@ -86,7 +85,7 @@ export const StudentTrendsScreen: React.FC<StudentTrendsScreenProps> = ({
                     </div>
                     <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
                       <div
-                        className="bg-blue-600"
+                        className="bg-academic-700"
                         title={`Assessment: ${item.assessments}`}
                         style={{ width: `${(item.assessments / maximum) * 100}%` }}
                       />
@@ -106,7 +105,7 @@ export const StudentTrendsScreen: React.FC<StudentTrendsScreenProps> = ({
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="rounded-lg border border-rule bg-white p-5">
             <h3 className="text-sm font-bold text-slate-900">Phân bố nhóm kết quả</h3>
             <p className="mt-1 text-xs text-slate-500">Nhóm assessment/test đã chuẩn hóa trong SQL.</p>
             <div className="mt-5 space-y-3">
@@ -118,7 +117,7 @@ export const StudentTrendsScreen: React.FC<StudentTrendsScreenProps> = ({
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-indigo-600 to-cyan-500"
+                      className="h-full rounded-full bg-academic-700"
                       style={{ width: `${(item.count / maximum) * 100}%` }}
                     />
                   </div>
@@ -136,24 +135,17 @@ const MetricCard = ({
   icon,
   label,
   value,
-  tone,
 }: {
   icon: React.ReactNode;
   label: string;
   value: number | string;
-  tone: 'blue' | 'teal' | 'indigo';
 }) => {
-  const styles = {
-    blue: 'bg-blue-50 text-blue-700 border-blue-200',
-    teal: 'bg-teal-50 text-teal-700 border-teal-200',
-    indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  };
   return (
-    <div className={`rounded-2xl border p-5 ${styles[tone]}`}>
-      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
+    <div className="border-y border-rule bg-white p-5 text-academic-700">
+      <div className="flex items-center gap-2 text-xs font-semibold">
         <span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>{label}
       </div>
-      <div className="mt-2 text-3xl font-extrabold text-slate-950">
+      <div className="mt-2 text-3xl font-bold tabular-nums text-ink-950">
         {typeof value === 'number' ? value.toLocaleString('vi-VN') : value}
       </div>
     </div>
@@ -161,7 +153,7 @@ const MetricCard = ({
 };
 
 const PrivacyState = ({ minimum }: { minimum: number }) => (
-  <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-950">
+  <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-5 text-amber-950">
     <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
     <div>
       <h3 className="text-sm font-bold">Dữ liệu đang được bảo vệ</h3>
@@ -174,7 +166,7 @@ const PrivacyState = ({ minimum }: { minimum: number }) => (
 );
 
 const EmptyState = () => (
-  <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+  <div className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center">
     <BrainCircuit className="mx-auto h-8 w-8 text-slate-400" />
     <h3 className="mt-3 text-sm font-bold text-slate-800">Chưa có dữ liệu xu hướng</h3>
     <p className="mt-1 text-xs text-slate-500">Hãy thay đổi kỳ hoặc bộ lọc sau khi assessment/test được ghi nhận.</p>
