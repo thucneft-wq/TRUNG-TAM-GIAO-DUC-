@@ -28,7 +28,7 @@ interface DashboardScreenProps {
   timeRange: TimeRange;
   onTimeRangeChange: (tr: TimeRange) => void;
   onNavigate: (screen: ScreenType) => void;
-  onSelectCounselor: (counselor: Counselor) => void;
+  onOpenCounselorDetail: (counselor: Counselor) => void;
   onFilterCounselorsStatus?: (status: 'all' | 'pass' | 'not-pass') => void;
   onExport: () => void;
   isExporting: boolean;
@@ -47,7 +47,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   timeRange,
   onTimeRangeChange,
   onNavigate,
-  onSelectCounselor,
+  onOpenCounselorDetail,
   onFilterCounselorsStatus,
   onExport,
   isExporting,
@@ -361,10 +361,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 key={c.id}
                 type="button"
                 aria-label={`Mở chi tiết KPI của ${c.name}`}
-                onClick={() => {
-                  onSelectCounselor(c);
-                  onNavigate('counselor-detail');
-                }}
+                onClick={() => onOpenCounselorDetail(c)}
                 className="group grid w-full gap-3 px-4 py-4 text-left transition-colors hover:bg-teal-50/60 sm:grid-cols-[minmax(0,1.4fr)_minmax(12rem,0.8fr)_auto] sm:items-center sm:px-5"
               >
                 <div className="min-w-0">

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ExternalLink, RefreshCw, Search, ShieldCheck } from 'lucide-react';
+import { ExternalLink, Eye, RefreshCw, Search, ShieldCheck } from 'lucide-react';
 import type { Counselor } from '../types';
 import { Alert, Button, TextInput } from './ui/Primitives';
 
@@ -8,6 +8,7 @@ interface CounselorSheetManagementScreenProps {
   googleEntryUrl: string;
   onRefresh: () => void;
   isRefreshing: boolean;
+  onViewDetails: (counselor: Counselor) => void;
 }
 
 const getCounselorStatusPresentation = (counselor: Counselor) => {
@@ -31,6 +32,7 @@ export const CounselorSheetManagementScreen: React.FC<CounselorSheetManagementSc
   googleEntryUrl,
   onRefresh,
   isRefreshing,
+  onViewDetails,
 }) => {
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -139,7 +141,11 @@ export const CounselorSheetManagementScreen: React.FC<CounselorSheetManagementSc
                       <dd className="mt-1 text-pretty text-slate-800">{counselor.specialization || '—'}</dd>
                     </div>
                   </dl>
-                  <div className="flex justify-end border-t border-slate-100 pt-3">
+                  <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
+                    <Button size="sm" onClick={() => onViewDetails(counselor)}>
+                      <Eye className="h-3.5 w-3.5" />
+                      Xem chi tiết
+                    </Button>
                     <Button size="sm" onClick={openSheet} aria-label={`Mở Sheet cập nhật ${counselor.name}`}>
                       <ExternalLink className="h-3.5 w-3.5" />
                       Mở Sheet
@@ -160,7 +166,7 @@ export const CounselorSheetManagementScreen: React.FC<CounselorSheetManagementSc
                 <th className="px-4 py-3">Số điện thoại</th>
                 <th className="px-4 py-3">Vai trò / chuyên môn</th>
                 <th className="px-4 py-3">Trạng thái</th>
-                <th className="px-4 py-3 text-right">Cập nhật</th>
+                <th className="px-4 py-3 text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -180,11 +186,17 @@ export const CounselorSheetManagementScreen: React.FC<CounselorSheetManagementSc
                         {statusPresentation.label}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <Button size="sm" onClick={openSheet} aria-label={`Mở Sheet cập nhật ${counselor.name}`}>
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        Mở Sheet
-                      </Button>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Button size="sm" onClick={() => onViewDetails(counselor)}>
+                          <Eye className="h-3.5 w-3.5" />
+                          Xem chi tiết
+                        </Button>
+                        <Button size="sm" onClick={openSheet} aria-label={`Mở Sheet cập nhật ${counselor.name}`}>
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Mở Sheet
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 );

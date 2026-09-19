@@ -97,6 +97,8 @@ const EMPTY_FEEDBACK: FeedbackAnalytics = {
   timeline: [],
 };
 
+type CounselorDetailSource = 'dashboard' | 'counselors' | 'counselor-management';
+
 const loadingStudentSource = (): StudentDataSourceState => ({
   status: 'loading',
   error: null,
@@ -174,6 +176,9 @@ export default function App() {
   const [counselors, setCounselors] = useState<Counselor[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedCounselorId, setSelectedCounselorId] = useState<string | null>(null);
+  const [counselorDetailSource, setCounselorDetailSource] =
+    useState<CounselorDetailSource>('counselors');
+  const [navigationNotice, setNavigationNotice] = useState<string | null>(null);
   const [remoteDashboard, setRemoteDashboard] = useState<DashboardMetrics | null>(null);
   const [dataSource, setDataSource] = useState<'api' | 'mock'>(session?.source ?? 'mock');
   const [isDataLoading, setIsDataLoading] = useState(Boolean(session));
@@ -212,7 +217,7 @@ export default function App() {
     useState<'all' | 'pass' | 'not-pass'>('all');
 
   const selectedCounselor = useMemo(
-    () => counselors.find((counselor) => counselor.id === selectedCounselorId) ?? counselors[0] ?? null,
+    () => counselors.find((counselor) => counselor.id === selectedCounselorId) ?? null,
     [counselors, selectedCounselorId],
   );
 
@@ -275,7 +280,7 @@ export default function App() {
           if (currentId && result.counselors.some((counselor) => counselor.id === currentId)) {
             return currentId;
           }
-          return result.counselors[0]?.id ?? null;
+          return null;
         });
       })
       .catch((error) => {
@@ -581,6 +586,18 @@ export default function App() {
   }, [session, currentScreen]);
 
   useEffect(() => {
+    if (
+      session?.user.roleCode === 'admin'
+      && currentScreen === 'counselor-detail'
+      && !selectedCounselorId
+      && !isDataLoading
+    ) {
+      setNavigationNotice('Hãy chọn một tư vấn viên trước khi mở chi tiết KPI.');
+      setCurrentScreen('counselors');
+    }
+  }, [session, currentScreen, selectedCounselorId, isDataLoading]);
+
+  useEffect(() => {
     if (!session || session.user.roleCode !== 'admin' || currentScreen !== 'audit-logs') return;
     const controller = new AbortController();
     loadAuditLogs(session, controller.signal)
@@ -593,17 +610,6 @@ export default function App() {
     return () => controller.abort();
   }, [session, currentScreen, refreshKey]);
 
-  useEffect(() => {
-    if (!isSidebarOpen) return;
-
-    const closeSidebarWithEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsSidebarOpen(false);
-    };
-
-    document.addEventListener('keydown', closeSidebarWithEscape);
-    return () => document.removeEventListener('keydown', closeSidebarWithEscape);
-  }, [isSidebarOpen]);
-
   const handleLogin = (authenticatedSession: AuthSession) => {
     if (authenticatedSession.user.roleCode !== 'admin') {
       clearSession();
@@ -614,6 +620,9 @@ export default function App() {
     saveSession(authenticatedSession);
     setSession(authenticatedSession);
     setDataSource(authenticatedSession.source);
+    setSelectedCounselorId(null);
+    setCounselorDetailSource('counselors');
+    setNavigationNotice(null);
     setCurrentScreen('dashboard');
     setIsDataLoading(true);
   };
@@ -633,6 +642,8 @@ export default function App() {
     setDataWarning(null);
     setAnalyticsError(null);
     setAuditLogs([]);
+    setCounselorDetailSource('counselors');
+    setNavigationNotice(null);
     setCurrentScreen('login');
     setIsSidebarOpen(false);
   };
@@ -783,6 +794,7 @@ export default function App() {
   };
 
   const handleNavigate = (screen: ScreenType) => {
+    const shouldRestoreMenuFocus = isSidebarOpen;
     if (session?.user.roleCode === 'counselor' && screen !== 'students') return;
     if (
       isCrudDemoMode &&
@@ -793,7 +805,36 @@ export default function App() {
       screen !== 'counselors' &&
       screen !== 'counselor-detail'
     ) return;
+
+    if (screen === 'counselor-detail' && !selectedCounselorId) {
+      setNavigationNotice('Hãy chọn một tư vấn viên trước khi mở chi tiết KPI.');
+      setCurrentScreen('counselors');
+      setIsSidebarOpen(false);
+      return;
+    }
+
+    setNavigationNotice(null);
     setCurrentScreen(screen);
+    setIsSidebarOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    requestAnimationFrame(() => {
+      if (shouldRestoreMenuFocus) {
+        document.getElementById('btn-toggle-sidebar-mobile')?.focus({ preventScroll: true });
+      } else {
+        document.getElementById('main-content')?.focus({ preventScroll: true });
+      }
+    });
+  };
+
+  const handleOpenCounselorDetail = (
+    counselor: Counselor,
+    source: CounselorDetailSource,
+  ) => {
+    setSelectedCounselorId(counselor.id);
+    setCounselorDetailSource(source);
+    setNavigationNotice(null);
+    setCurrentScreen('counselor-detail');
     setIsSidebarOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -861,7 +902,6 @@ export default function App() {
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         onLogout={handleLogout}
-        selectedCounselorId={selectedCounselor?.externalId}
         dataSource={dataSource}
         isDataLoading={isAnyDataLoading}
         roleCode={session.user.roleCode ?? 'admin'}
@@ -889,6 +929,12 @@ export default function App() {
           aria-busy={isPageLoading}
           className="mx-auto w-full max-w-[94rem] flex-1 px-4 py-5 focus:outline-none sm:px-6 sm:py-7 lg:px-8 lg:py-8"
         >
+          {navigationNotice && (
+            <Alert tone="info" className="mb-5 text-xs">
+              {navigationNotice}
+            </Alert>
+          )}
+
           {visibleDataError && !(currentScreen === 'students' && students.length === 0) && (
             <Alert
               tone="error"
@@ -989,7 +1035,9 @@ export default function App() {
                     timeRange={timeRange}
                     onTimeRangeChange={setTimeRange}
                     onNavigate={handleNavigate}
-                    onSelectCounselor={(counselor) => setSelectedCounselorId(counselor.id)}
+                    onOpenCounselorDetail={(counselor) => (
+                      handleOpenCounselorDetail(counselor, 'dashboard')
+                    )}
                     onFilterCounselorsStatus={handleFilterCounselorsStatus}
                     onExport={() => void handleExport('overview')}
                     isExporting={isExporting}
@@ -1022,6 +1070,9 @@ export default function App() {
                     googleEntryUrl={googleCounselorEntryUrl}
                     onRefresh={() => setRefreshKey((key) => key + 1)}
                     isRefreshing={isDataLoading}
+                    onViewDetails={(counselor) => (
+                      handleOpenCounselorDetail(counselor, 'counselor-management')
+                    )}
                   />
                 </motion.div>
               )}
@@ -1038,8 +1089,9 @@ export default function App() {
                     counselors={counselors}
                     timeRange={timeRange}
                     initialFilterStatus={initialCounselorFilter}
-                    onSelectCounselor={(counselor) => setSelectedCounselorId(counselor.id)}
-                    onNavigateToDetail={() => handleNavigate('counselor-detail')}
+                    onViewDetails={(counselor) => (
+                      handleOpenCounselorDetail(counselor, 'counselors')
+                    )}
                     onCreateCounselor={handleCreateCounselor}
                     dataSource={dataSource}
                     canManageCounselors={session.user.roleCode === 'admin' && isWebCrudEnabled}
@@ -1059,9 +1111,13 @@ export default function App() {
                     counselor={selectedCounselor}
                     allCounselors={counselors}
                     timeRange={timeRange}
-                    onBack={() => handleNavigate('counselors')}
+                    onBack={() => handleNavigate(counselorDetailSource)}
+                    backLabel={counselorDetailSource === 'dashboard'
+                      ? 'Quay lại Tổng quan bảng điều khiển'
+                      : counselorDetailSource === 'counselor-management'
+                        ? 'Quay lại Quản lý tư vấn viên'
+                        : 'Quay lại Hiệu suất tư vấn viên'}
                     onSelectCounselor={(counselor) => setSelectedCounselorId(counselor.id)}
-                    onNavigate={handleNavigate}
                     onUpdateCounselor={handleUpdateCounselor}
                     onDeactivateCounselor={handleDeactivateCounselor}
                     dataSource={dataSource}

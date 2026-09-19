@@ -20,7 +20,7 @@ import {
   Pencil,
   UserMinus,
 } from 'lucide-react';
-import { Counselor, CreateCounselorInput, TimeRange, ScreenType } from '../types';
+import { Counselor, CreateCounselorInput, TimeRange } from '../types';
 import {
   getCounselorEvaluation,
   getKpiActualValueLabel,
@@ -49,8 +49,8 @@ interface CounselorDetailScreenProps {
   allCounselors: Counselor[];
   timeRange: TimeRange;
   onBack: () => void;
+  backLabel: string;
   onSelectCounselor: (counselor: Counselor) => void;
-  onNavigate: (screen: ScreenType) => void;
   onUpdateCounselor: (input: CreateCounselorInput) => Promise<void>;
   onDeactivateCounselor: () => Promise<void>;
   dataSource: 'api' | 'mock';
@@ -62,8 +62,8 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
   allCounselors,
   timeRange,
   onBack,
+  backLabel,
   onSelectCounselor,
-  onNavigate,
   onUpdateCounselor,
   onDeactivateCounselor,
   dataSource,
@@ -120,7 +120,7 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
           className="self-start"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Quay lại bảng hiệu suất</span>
+          <span>{backLabel}</span>
         </Button>
 
         {canManageCounselors && <div className="flex flex-wrap items-center gap-2">
@@ -152,18 +152,18 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
           <span className="text-2xs text-slate-500 font-medium">Chuyển tư vấn viên:</span>
           <IconButton
             onClick={() => onSelectCounselor(prevCounselor)}
-            className="size-9 border-rule"
+            className="size-11 border-rule sm:size-10"
             aria-label={`Tư vấn viên trước: ${prevCounselor.name}`}
             title={`Trước: ${prevCounselor.name}`}
           >
             <ChevronLeft className="w-4 h-4" />
           </IconButton>
-          <span className="text-2xs font-mono font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded">
+          <span className="font-mono text-2xs font-semibold text-slate-600">
             {counselor.externalId ?? 'Chưa có mã'} ({currentIndex + 1}/{allCounselors.length})
           </span>
           <IconButton
             onClick={() => onSelectCounselor(nextCounselor)}
-            className="size-9 border-rule"
+            className="size-11 border-rule sm:size-10"
             aria-label={`Tư vấn viên tiếp theo: ${nextCounselor.name}`}
             title={`Tiếp theo: ${nextCounselor.name}`}
           >
@@ -183,9 +183,13 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
             </div>
 
             <div className="space-y-1">
+              <h1 className="page-title">
+                {counselor.name}
+              </h1>
+
               <div className="flex flex-wrap items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded text-2xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-200">
-                  {counselor.externalId ?? 'Chưa có mã'}
+                <span className="text-xs text-slate-500">
+                  Mã tư vấn viên: <span className="font-mono font-semibold text-slate-700">{counselor.externalId ?? 'Chưa có mã'}</span>
                 </span>
                 <span className="rounded border border-teal-200 bg-teal-50 px-2 py-0.5 text-2xs font-semibold text-academic-800">
                   {counselor.title}
@@ -194,10 +198,6 @@ export const CounselorDetailScreen: React.FC<CounselorDetailScreenProps> = ({
                   Dữ liệu {getTimeRangeLabel().toLocaleLowerCase('vi-VN')}
                 </span>
               </div>
-
-              <h1 className="page-title">
-                {counselor.name}
-              </h1>
 
               <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-0.5">
                 <span className="flex items-center gap-1.5">

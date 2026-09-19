@@ -18,8 +18,7 @@ interface CounselorListScreenProps {
   counselors: Counselor[];
   timeRange: TimeRange;
   initialFilterStatus?: 'all' | 'pass' | 'not-pass';
-  onSelectCounselor: (counselor: Counselor) => void;
-  onNavigateToDetail: () => void;
+  onViewDetails: (counselor: Counselor) => void;
   onCreateCounselor: (input: CreateCounselorInput) => Promise<void>;
   dataSource: 'api' | 'mock';
   canManageCounselors: boolean;
@@ -42,8 +41,7 @@ export const CounselorListScreen: React.FC<CounselorListScreenProps> = ({
   counselors,
   timeRange,
   initialFilterStatus = 'all',
-  onSelectCounselor,
-  onNavigateToDetail,
+  onViewDetails,
   onCreateCounselor,
   dataSource,
   canManageCounselors,
@@ -106,8 +104,7 @@ export const CounselorListScreen: React.FC<CounselorListScreenProps> = ({
   };
 
   const handleRowClick = (c: Counselor) => {
-    onSelectCounselor(c);
-    onNavigateToDetail();
+    onViewDetails(c);
   };
 
   const passCount = counselors.filter(
