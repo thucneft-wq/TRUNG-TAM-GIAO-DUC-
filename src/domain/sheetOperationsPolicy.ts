@@ -34,6 +34,43 @@ export interface SheetOperationsSummary {
   };
 }
 
+export interface BookingsSheetSummary {
+  totalBookings: number;
+  bookingsBreakdown: BookingStatusBreakdown;
+  bookingTimeline: BookingTimelinePoint[];
+  bookingGrowthPercent: number | null;
+  rawRowCount: number;
+  countedIds: string[];
+}
+
+export interface TestsSheetSummary {
+  activeTests: number;
+  rawRowCount: number;
+  countedIds: string[];
+}
+
+export interface TestAttemptsSheetSummary {
+  totalTestAttempts: number;
+  rawRowCount: number;
+  countedIds: string[];
+}
+
+export type SheetOperationSourceKey = 'bookings' | 'tests' | 'test_attempts';
+export type SheetOperationSourceStatus = 'loading' | 'available' | 'error';
+
+export interface SheetOperationSourceState<T> {
+  status: SheetOperationSourceStatus;
+  data: T | null;
+  error: string | null;
+  lastUpdated: string | null;
+}
+
+export interface DashboardSheetOperationsState {
+  bookings: SheetOperationSourceState<BookingsSheetSummary>;
+  tests: SheetOperationSourceState<TestsSheetSummary>;
+  testAttempts: SheetOperationSourceState<TestAttemptsSheetSummary>;
+}
+
 const TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const BOOKING_STATUSES: BookingStatus[] = [
   'completed',
@@ -202,13 +239,16 @@ const countBookingsForMonth = (
   return parts.year === target.year && parts.month === target.month;
 }).length;
 
-export const calculateSheetOperationsSummary = (
+const ids = (rows: SheetRecord[], ...keys: string[]) => rows
+  .map((row) => sheetText(pickSheetValue(row, ...keys)))
+  .filter(Boolean)
+  .sort((left, right) => left.localeCompare(right, 'en'));
+
+export const calculateBookingsSheetSummary = (
   bookingRows: SheetRecord[],
-  testRows: SheetRecord[],
-  testAttemptRows: SheetRecord[],
   range: TimeRange,
   now = new Date(),
-): SheetOperationsSummary => {
+): BookingsSheetSummary => {
   const uniqueBookings = dedupeLatest(bookingRows, 'booking_id', 'bookingId', 'id');
   const filteredBookings = uniqueBookings.filter((row) =>
     bookingStatus(row) !== null && isInRange(bookingDate(row), range, now));
@@ -241,10 +281,36 @@ export const calculateSheetOperationsSummary = (
     }
   }
 
+  return {
+    totalBookings: filteredBookings.length,
+    bookingsBreakdown,
+    bookingTimeline: [...timelineByKey.entries()]
+      .sort(([left], [right]) => left.localeCompare(right, 'en'))
+      .map(([, point]) => point),
+    bookingGrowthPercent,
+    rawRowCount: bookingRows.length,
+    countedIds: ids(filteredBookings, 'booking_id', 'bookingId', 'id'),
+  };
+};
+
+export const calculateTestsSheetSummary = (
+  testRows: SheetRecord[],
+): TestsSheetSummary => {
   const uniqueTests = dedupeLatest(testRows, 'test_id', 'testId', 'id');
   const activeTestRows = uniqueTests.filter((row) =>
     sheetText(pickSheetValue(row, 'status')).toLocaleUpperCase('en-US') === 'ACTIVE');
+  return {
+    activeTests: activeTestRows.length,
+    rawRowCount: testRows.length,
+    countedIds: ids(activeTestRows, 'test_id', 'testId', 'id'),
+  };
+};
 
+export const calculateTestAttemptsSheetSummary = (
+  testAttemptRows: SheetRecord[],
+  range: TimeRange,
+  now = new Date(),
+): TestAttemptsSheetSummary => {
   const uniqueAttempts = dedupeLatest(
     testAttemptRows,
     'test_attempt_id',
@@ -253,30 +319,108 @@ export const calculateSheetOperationsSummary = (
   );
   const filteredAttempts = uniqueAttempts.filter((row) =>
     isInRange(attemptDate(row), range, now));
+  return {
+    totalTestAttempts: filteredAttempts.length,
+    rawRowCount: testAttemptRows.length,
+    countedIds: ids(filteredAttempts, 'test_attempt_id', 'testAttemptId', 'id'),
+  };
+};
 
-  const ids = (rows: SheetRecord[], ...keys: string[]) => rows
-    .map((row) => sheetText(pickSheetValue(row, ...keys)))
-    .filter(Boolean)
-    .sort((left, right) => left.localeCompare(right, 'en'));
+const sourceErrorMessage = (source: SheetOperationSourceKey, reason: unknown): string => {
+  if (reason instanceof Error && reason.message) return reason.message;
+  const label = source === 'bookings'
+    ? 'lịch hẹn'
+    : source === 'tests'
+      ? 'bài test'
+      : 'lượt làm bài';
+  return `Không thể tải dữ liệu ${label} từ Sheet Mirror.`;
+};
+
+export const createLoadingSheetOperationsState = (): DashboardSheetOperationsState => ({
+  bookings: { status: 'loading', data: null, error: null, lastUpdated: null },
+  tests: { status: 'loading', data: null, error: null, lastUpdated: null },
+  testAttempts: { status: 'loading', data: null, error: null, lastUpdated: null },
+});
+
+export const settleSheetOperationSources = async (
+  sources: SheetOperationSourceKey[],
+  loadRows: (source: SheetOperationSourceKey) => Promise<SheetRecord[]>,
+  range: TimeRange,
+  now = new Date(),
+): Promise<Partial<DashboardSheetOperationsState>> => {
+  const settled = await Promise.allSettled(sources.map((source) => loadRows(source)));
+  const updatedAt = now.toISOString();
+  const result: Partial<DashboardSheetOperationsState> = {};
+
+  sources.forEach((source, index) => {
+    const outcome = settled[index];
+    if (outcome.status === 'rejected') {
+      const errorState = {
+        status: 'error' as const,
+        data: null,
+        error: sourceErrorMessage(source, outcome.reason),
+        lastUpdated: null,
+      };
+      if (source === 'bookings') result.bookings = errorState;
+      if (source === 'tests') result.tests = errorState;
+      if (source === 'test_attempts') result.testAttempts = errorState;
+      return;
+    }
+
+    if (source === 'bookings') {
+      result.bookings = {
+        status: 'available',
+        data: calculateBookingsSheetSummary(outcome.value, range, now),
+        error: null,
+        lastUpdated: updatedAt,
+      };
+    } else if (source === 'tests') {
+      result.tests = {
+        status: 'available',
+        data: calculateTestsSheetSummary(outcome.value),
+        error: null,
+        lastUpdated: updatedAt,
+      };
+    } else {
+      result.testAttempts = {
+        status: 'available',
+        data: calculateTestAttemptsSheetSummary(outcome.value, range, now),
+        error: null,
+        lastUpdated: updatedAt,
+      };
+    }
+  });
+
+  return result;
+};
+
+export const calculateSheetOperationsSummary = (
+  bookingRows: SheetRecord[],
+  testRows: SheetRecord[],
+  testAttemptRows: SheetRecord[],
+  range: TimeRange,
+  now = new Date(),
+): SheetOperationsSummary => {
+  const bookings = calculateBookingsSheetSummary(bookingRows, range, now);
+  const tests = calculateTestsSheetSummary(testRows);
+  const attempts = calculateTestAttemptsSheetSummary(testAttemptRows, range, now);
 
   return {
-    totalBookings: filteredBookings.length,
-    bookingsBreakdown,
-    bookingTimeline: [...timelineByKey.entries()]
-      .sort(([left], [right]) => left.localeCompare(right, 'en'))
-      .map(([, point]) => point),
-    bookingGrowthPercent,
-    activeTests: activeTestRows.length,
-    totalTestAttempts: filteredAttempts.length,
+    totalBookings: bookings.totalBookings,
+    bookingsBreakdown: bookings.bookingsBreakdown,
+    bookingTimeline: bookings.bookingTimeline,
+    bookingGrowthPercent: bookings.bookingGrowthPercent,
+    activeTests: tests.activeTests,
+    totalTestAttempts: attempts.totalTestAttempts,
     rawRowCounts: {
-      bookings: bookingRows.length,
-      tests: testRows.length,
-      testAttempts: testAttemptRows.length,
+      bookings: bookings.rawRowCount,
+      tests: tests.rawRowCount,
+      testAttempts: attempts.rawRowCount,
     },
     countedIds: {
-      bookings: ids(filteredBookings, 'booking_id', 'bookingId', 'id'),
-      activeTests: ids(activeTestRows, 'test_id', 'testId', 'id'),
-      testAttempts: ids(filteredAttempts, 'test_attempt_id', 'testAttemptId', 'id'),
+      bookings: bookings.countedIds,
+      activeTests: tests.countedIds,
+      testAttempts: attempts.countedIds,
     },
   };
 };

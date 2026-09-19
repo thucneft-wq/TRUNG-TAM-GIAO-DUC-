@@ -48,7 +48,11 @@ import {
   updateStudent,
 } from './services/api';
 import { countActiveStudentsByLevel } from './domain/sheetStudentPolicy';
-import type { SheetOperationsSummary } from './domain/sheetOperationsPolicy';
+import {
+  createLoadingSheetOperationsState,
+  type DashboardSheetOperationsState,
+  type SheetOperationSourceKey,
+} from './domain/sheetOperationsPolicy';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { LoginScreen } from './components/LoginScreen';
@@ -133,11 +137,12 @@ export default function App() {
   const [isStudentCounselorRetrying, setIsStudentCounselorRetrying] = useState(false);
   const studentCounselorRetryController = useRef<AbortController | null>(null);
   const [studentsLastUpdated, setStudentsLastUpdated] = useState<string | null>(null);
-  const [sheetOperations, setSheetOperations] = useState<SheetOperationsSummary | null>(null);
-  const [isSheetOperationsLoading, setIsSheetOperationsLoading] = useState(Boolean(session));
-  const [sheetOperationsError, setSheetOperationsError] = useState<string | null>(null);
-  const [sheetOperationsLastUpdated, setSheetOperationsLastUpdated] = useState<string | null>(null);
-  const [sheetOperationsRefreshKey, setSheetOperationsRefreshKey] = useState(0);
+  const [sheetOperations, setSheetOperations] = useState<DashboardSheetOperationsState>(
+    createLoadingSheetOperationsState,
+  );
+  const sheetOperationRetryControllers = useRef<
+    Partial<Record<SheetOperationSourceKey, AbortController>>
+  >({});
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [initialCounselorFilter, setInitialCounselorFilter] =
@@ -291,39 +296,35 @@ export default function App() {
 
   useEffect(() => {
     if (!session) {
-      setIsSheetOperationsLoading(false);
       return;
     }
     let isCurrentRequest = true;
     const controller = new AbortController();
-    setIsSheetOperationsLoading(true);
-    setSheetOperationsError(null);
-    setSheetOperations(null);
-    setSheetOperationsLastUpdated(null);
+    (['bookings', 'tests', 'test_attempts'] as SheetOperationSourceKey[]).forEach((source) => {
+      sheetOperationRetryControllers.current[source]?.abort();
+      delete sheetOperationRetryControllers.current[source];
+    });
+    setSheetOperations(createLoadingSheetOperationsState());
 
-    loadDashboardSheetOperations(session, timeRange, controller.signal)
-      .then((result) => {
-        if (!isCurrentRequest) return;
-        setSheetOperations(result);
-        setSheetOperationsLastUpdated(new Date().toISOString());
-      })
-      .catch((error) => {
-        if (!isCurrentRequest) return;
-        setSheetOperationsError(
-          error instanceof Error
-            ? error.message
-            : 'Không thể tải dữ liệu lịch hẹn và bài test từ Sheet Mirror.',
-        );
-      })
-      .finally(() => {
-        if (isCurrentRequest) setIsSheetOperationsLoading(false);
-      });
+    (['bookings', 'tests', 'test_attempts'] as SheetOperationSourceKey[]).forEach((source) => {
+      loadDashboardSheetOperations(session, timeRange, source, controller.signal)
+        .then((result) => {
+          if (!isCurrentRequest) return;
+          setSheetOperations((current) => ({ ...current, ...result }));
+        });
+    });
 
     return () => {
       isCurrentRequest = false;
       controller.abort();
     };
-  }, [session, timeRange, sheetOperationsRefreshKey]);
+  }, [session, timeRange]);
+
+  useEffect(() => () => {
+    (['bookings', 'tests', 'test_attempts'] as SheetOperationSourceKey[]).forEach((source) => {
+      sheetOperationRetryControllers.current[source]?.abort();
+    });
+  }, []);
 
   useEffect(() => {
     if (!session) return;
@@ -476,9 +477,7 @@ export default function App() {
     setDataError(null);
     setStudentsError(null);
     setStudentsLastUpdated(null);
-    setSheetOperations(null);
-    setSheetOperationsError(null);
-    setSheetOperationsLastUpdated(null);
+    setSheetOperations(createLoadingSheetOperationsState());
     setDataWarning(null);
     setAnalyticsError(null);
     setAuditLogs([]);
@@ -572,12 +571,27 @@ export default function App() {
     }
   };
 
-  const handleSheetOperationsRefresh = () => {
-    clearDashboardOperationsSheetMirrorCache();
-    setSheetOperations(null);
-    setSheetOperationsError(null);
-    setSheetOperationsLastUpdated(null);
-    setSheetOperationsRefreshKey((key) => key + 1);
+  const handleSheetOperationRetry = async (source: SheetOperationSourceKey) => {
+    if (!session) return;
+    sheetOperationRetryControllers.current[source]?.abort();
+    clearDashboardOperationsSheetMirrorCache([source]);
+    const controller = new AbortController();
+    sheetOperationRetryControllers.current[source] = controller;
+    const stateKey = source === 'test_attempts' ? 'testAttempts' : source;
+    setSheetOperations((current) => ({
+      ...current,
+      [stateKey]: { status: 'loading', data: null, error: null, lastUpdated: null },
+    }));
+
+    const result = await loadDashboardSheetOperations(
+      session,
+      timeRange,
+      source,
+      controller.signal,
+    );
+    if (sheetOperationRetryControllers.current[source] !== controller) return;
+    setSheetOperations((current) => ({ ...current, ...result }));
+    delete sheetOperationRetryControllers.current[source];
   };
 
   const handleNavigate = (screen: ScreenType) => {
@@ -779,10 +793,7 @@ export default function App() {
                     studentsLastUpdated={studentsLastUpdated}
                     onRetryStudents={handleStudentsRefresh}
                     sheetOperations={sheetOperations}
-                    isSheetOperationsLoading={isSheetOperationsLoading}
-                    sheetOperationsError={sheetOperationsError}
-                    sheetOperationsLastUpdated={sheetOperationsLastUpdated}
-                    onRetrySheetOperations={handleSheetOperationsRefresh}
+                    onRetrySheetOperation={(source) => void handleSheetOperationRetry(source)}
                     timeRange={timeRange}
                     onTimeRangeChange={setTimeRange}
                     onNavigate={handleNavigate}

@@ -14,7 +14,10 @@ import {
   enrichSheetStudentRows,
   isSheetTrue,
 } from '../src/domain/sheetStudentPolicy.ts';
-import { calculateSheetOperationsSummary } from '../src/domain/sheetOperationsPolicy.ts';
+import {
+  calculateSheetOperationsSummary,
+  settleSheetOperationSources,
+} from '../src/domain/sheetOperationsPolicy.ts';
 import { loadStudentSheetSources } from '../src/domain/studentLoadPolicy.ts';
 import { SharedRequestPool } from '../src/services/sharedRequestPool.ts';
 
@@ -420,6 +423,62 @@ assert.deepEqual(sheetOperations.countedIds.testAttempts, [
   'LANTHI-02',
   'LANTHI-03',
 ]);
+
+const isolatedOperationCalls: string[] = [];
+const isolatedOperations = await settleSheetOperationSources(
+  ['bookings', 'tests', 'test_attempts'],
+  async (source) => {
+    isolatedOperationCalls.push(source);
+    if (source === 'bookings') throw new Error('Bookings timeout');
+    if (source === 'tests') return [{ test_id: 'TST-01', status: 'ACTIVE' }];
+    return [];
+  },
+  'this-month',
+  new Date('2026-09-19T05:00:00Z'),
+);
+assert.deepEqual(isolatedOperationCalls.sort(), ['bookings', 'test_attempts', 'tests']);
+assert.equal(isolatedOperations.bookings?.status, 'error');
+assert.equal(isolatedOperations.bookings?.data, null);
+assert.equal(isolatedOperations.tests?.status, 'available');
+assert.equal(isolatedOperations.tests?.data?.activeTests, 1);
+assert.equal(isolatedOperations.testAttempts?.status, 'available');
+assert.equal(isolatedOperations.testAttempts?.data?.totalTestAttempts, 0);
+
+const failedTestsOnly = await settleSheetOperationSources(
+  ['tests', 'test_attempts'],
+  async (source) => {
+    if (source === 'tests') throw new Error('Tests timeout');
+    return [];
+  },
+  'this-month',
+  new Date('2026-09-19T05:00:00Z'),
+);
+assert.equal(failedTestsOnly.tests?.status, 'error');
+assert.equal(failedTestsOnly.tests?.data, null);
+assert.equal(failedTestsOnly.testAttempts?.status, 'available');
+assert.equal(failedTestsOnly.testAttempts?.data?.totalTestAttempts, 0);
+
+const emptyBookings = await settleSheetOperationSources(
+  ['bookings'],
+  async () => [],
+  'this-month',
+  new Date('2026-09-19T05:00:00Z'),
+);
+assert.equal(emptyBookings.bookings?.status, 'available');
+assert.equal(emptyBookings.bookings?.data?.totalBookings, 0);
+
+const retryCalls: string[] = [];
+const retriedBookings = await settleSheetOperationSources(
+  ['bookings'],
+  async (source) => {
+    retryCalls.push(source);
+    return [];
+  },
+  'this-month',
+  new Date('2026-09-19T05:00:00Z'),
+);
+assert.deepEqual(retryCalls, ['bookings'], 'Booking retry must not reload tests or test_attempts');
+assert.equal(retriedBookings.bookings?.data?.totalBookings, 0);
 
 const resilientSources = await loadStudentSheetSources(async (table) => {
   if (table === 'counselors') throw new Error('Counselor timeout');

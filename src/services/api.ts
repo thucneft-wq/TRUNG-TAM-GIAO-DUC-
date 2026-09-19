@@ -15,8 +15,9 @@ import {
 } from '../domain/studentLoadPolicy';
 import { SharedRequestPool } from './sharedRequestPool';
 import {
-  calculateSheetOperationsSummary,
-  type SheetOperationsSummary,
+  settleSheetOperationSources,
+  type DashboardSheetOperationsState,
+  type SheetOperationSourceKey,
 } from '../domain/sheetOperationsPolicy';
 import { getDashboardMetricsByTimeRange, INITIAL_COUNSELORS } from '../mockData';
 import {
@@ -1167,9 +1168,10 @@ export const clearStudentCounselorSheetMirrorCache = (): void => {
   clearSheetMirrorTables(['counselors', 'counselor_assignments'], true);
 };
 
-export const clearDashboardOperationsSheetMirrorCache = (): void => {
-  const operationsTables: SheetMirrorTable[] = ['bookings', 'tests', 'test_attempts'];
-  clearSheetMirrorTables(operationsTables, true);
+export const clearDashboardOperationsSheetMirrorCache = (
+  tables: SheetOperationSourceKey[] = ['bookings', 'tests', 'test_attempts'],
+): void => {
+  clearSheetMirrorTables(tables, true);
 };
 
 const loadSheetMirrorRows = async (
@@ -1740,17 +1742,17 @@ export const reloadStudentCounselorData = async (
 export const loadDashboardSheetOperations = async (
   session: AuthSession,
   period: TimeRange,
+  source: SheetOperationSourceKey,
   signal?: AbortSignal,
-): Promise<SheetOperationsSummary> => {
+): Promise<Partial<DashboardSheetOperationsState>> => {
   if (!isRemoteApiConfigured || session.source === 'mock') {
-    return calculateSheetOperationsSummary([], [], [], period);
+    return settleSheetOperationSources([source], async () => [], period);
   }
-  const [bookings, tests, testAttempts] = await Promise.all([
-    loadSheetMirrorRows(session, 'bookings', signal),
-    loadSheetMirrorRows(session, 'tests', signal),
-    loadSheetMirrorRows(session, 'test_attempts', signal),
-  ]);
-  return calculateSheetOperationsSummary(bookings, tests, testAttempts, period);
+  return settleSheetOperationSources(
+    [source],
+    (table) => loadSheetMirrorRows(session, table, signal),
+    period,
+  );
 };
 
 export const createStudent = async (

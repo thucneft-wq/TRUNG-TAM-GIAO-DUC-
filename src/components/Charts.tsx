@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { CheckCircle2, XCircle, Info } from 'lucide-react';
 import type {
+  BookingsSheetSummary,
   BookingStatus,
-  SheetOperationsSummary,
 } from '../domain/sheetOperationsPolicy';
 import { Button } from './ui/Primitives';
 
@@ -176,7 +176,7 @@ export const CounselorPassChart: React.FC<CounselorPassChartProps> = ({
 };
 
 interface BookingsChartProps {
-  summary: SheetOperationsSummary | null;
+  summary: BookingsSheetSummary | null;
   isLoading: boolean;
   error: string | null;
   onRetry: () => void;
@@ -244,7 +244,7 @@ export const BookingsChart: React.FC<BookingsChartProps> = ({
           {error ? (
             <div role="alert" className="max-w-sm space-y-3">
               <p className="text-sm font-medium text-brick-700">
-                Không thể tải dữ liệu lịch hẹn và bài test từ Sheet Mirror.
+                Không thể tải dữ liệu lịch hẹn từ Sheet Mirror.
               </p>
               <Button size="sm" onClick={onRetry}>Thử lại</Button>
             </div>
@@ -262,7 +262,7 @@ export const BookingsChart: React.FC<BookingsChartProps> = ({
   const percentage = (status: BookingStatus) =>
     total > 0 ? Math.round((summary.bookingsBreakdown[status] / total) * 100) : 0;
   const completedPercentage = percentage('completed');
-  const timelineTotal = (point: SheetOperationsSummary['bookingTimeline'][number]) =>
+  const timelineTotal = (point: BookingsSheetSummary['bookingTimeline'][number]) =>
     BOOKING_STATUS_PRESENTATION.reduce((sum, status) => sum + point[status.key], 0);
   const maxTimeline = Math.max(...summary.bookingTimeline.map(timelineTotal), 1);
 

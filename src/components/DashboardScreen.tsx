@@ -13,7 +13,10 @@ import {
 } from 'lucide-react';
 import { Counselor, DashboardMetrics, TimeRange, ScreenType } from '../types';
 import type { ActiveStudentSummary } from '../domain/sheetStudentPolicy';
-import type { SheetOperationsSummary } from '../domain/sheetOperationsPolicy';
+import type {
+  DashboardSheetOperationsState,
+  SheetOperationSourceKey,
+} from '../domain/sheetOperationsPolicy';
 import { getCounselorEvaluation, PERFORMANCE_KPI_COUNT } from '../domain/kpiPolicy';
 import { KpiCard } from './KpiCard';
 import { CounselorPassChart, BookingsChart } from './Charts';
@@ -34,11 +37,8 @@ interface DashboardScreenProps {
   studentsError: string | null;
   studentsLastUpdated: string | null;
   onRetryStudents: () => void;
-  sheetOperations: SheetOperationsSummary | null;
-  isSheetOperationsLoading: boolean;
-  sheetOperationsError: string | null;
-  sheetOperationsLastUpdated: string | null;
-  onRetrySheetOperations: () => void;
+  sheetOperations: DashboardSheetOperationsState;
+  onRetrySheetOperation: (source: SheetOperationSourceKey) => void;
 }
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({
@@ -57,10 +57,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   studentsLastUpdated,
   onRetryStudents,
   sheetOperations,
-  isSheetOperationsLoading,
-  sheetOperationsError,
-  sheetOperationsLastUpdated,
-  onRetrySheetOperations,
+  onRetrySheetOperation,
 }) => {
   const getTimeLabel = () => {
     switch (timeRange) {
@@ -204,30 +201,35 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           <KpiCard
             id="kpi-card-total-bookings"
             title="Tổng số lịch hẹn"
-            value={isSheetOperationsLoading || sheetOperationsError || !sheetOperations
-              ? '—'
-              : sheetOperations.totalBookings.toLocaleString('vi-VN')}
+            value={sheetOperations.bookings.status === 'available' && sheetOperations.bookings.data
+              ? sheetOperations.bookings.data.totalBookings.toLocaleString('vi-VN')
+              : '—'}
             subtitle="Tiếp nhận và phiên tham vấn"
             icon={CalendarCheck}
             variant="default"
-            trend={sheetOperations
-              && sheetOperations.bookingGrowthPercent !== null
-              && sheetOperations.bookingGrowthPercent !== 0
+            trend={sheetOperations.bookings.data
+              && sheetOperations.bookings.data.bookingGrowthPercent !== null
+              && sheetOperations.bookings.data.bookingGrowthPercent !== 0
               ? {
-                  value: `${Math.abs(sheetOperations.bookingGrowthPercent).toLocaleString('vi-VN')}%`,
-                  isPositive: sheetOperations.bookingGrowthPercent > 0,
+                  value: `${Math.abs(sheetOperations.bookings.data.bookingGrowthPercent).toLocaleString('vi-VN')}%`,
+                  isPositive: sheetOperations.bookings.data.bookingGrowthPercent > 0,
                   label: 'so với kỳ trước',
                 }
               : undefined}
             footer={(
-              <div className="mt-1 text-slate-500">
-                {sheetOperationsError ? (
-                  <p>Dữ liệu Sheet Mirror chưa sẵn sàng</p>
-                ) : isSheetOperationsLoading || !sheetOperations ? (
+              <div className="mt-1 space-y-2 text-slate-500">
+                {sheetOperations.bookings.status === 'error' ? (
+                  <div role="alert" className="space-y-2 text-brick-700">
+                    <p>Không thể tải dữ liệu lịch hẹn.</p>
+                    <Button size="sm" onClick={() => onRetrySheetOperation('bookings')}>
+                      Thử lại lịch hẹn
+                    </Button>
+                  </div>
+                ) : sheetOperations.bookings.status === 'loading' ? (
                   <p aria-live="polite">Đang tải Sheet Mirror…</p>
-                ) : sheetOperations.bookingGrowthPercent === 0 ? (
+                ) : sheetOperations.bookings.data?.bookingGrowthPercent === 0 ? (
                   <p>Không đổi so với kỳ trước</p>
-                ) : sheetOperations.bookingGrowthPercent === null ? (
+                ) : sheetOperations.bookings.data?.bookingGrowthPercent === null ? (
                   <p>Cập nhật từ Google Sheet</p>
                 ) : null}
               </div>
@@ -237,19 +239,37 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           <KpiCard
             id="kpi-card-total-tests"
             title="Bài test đang hoạt động"
-            value={isSheetOperationsLoading || sheetOperationsError || !sheetOperations
-              ? '—'
-              : sheetOperations.activeTests.toLocaleString('vi-VN')}
-            subtitle={sheetOperations && !sheetOperationsError && !isSheetOperationsLoading
-              ? `${sheetOperations.totalTestAttempts.toLocaleString('vi-VN')} lượt học sinh làm bài`
-              : 'Dữ liệu từ Google Sheet'}
+            value={sheetOperations.tests.status === 'available' && sheetOperations.tests.data
+              ? sheetOperations.tests.data.activeTests.toLocaleString('vi-VN')
+              : '—'}
+            subtitle={sheetOperations.testAttempts.status === 'available' && sheetOperations.testAttempts.data
+              ? `${sheetOperations.testAttempts.data.totalTestAttempts.toLocaleString('vi-VN')} lượt học sinh làm bài`
+              : sheetOperations.testAttempts.status === 'error'
+                ? 'Lượt làm bài tạm thời chưa tải được'
+                : 'Đang tải lượt làm bài…'}
             icon={FlaskConical}
             variant="default"
-            footer={sheetOperations && !sheetOperationsError && !isSheetOperationsLoading ? (
-              <p className="mt-1 text-slate-500">
-                Cập nhật lúc {formatStudentUpdateTime(sheetOperationsLastUpdated)}
-              </p>
-            ) : undefined}
+            footer={(
+              <div className="mt-1 space-y-2 text-slate-500">
+                {sheetOperations.tests.status === 'error' ? (
+                  <div role="alert" className="space-y-2 text-brick-700">
+                    <p>Không thể tải danh sách bài test.</p>
+                    <Button size="sm" onClick={() => onRetrySheetOperation('tests')}>
+                      Thử lại bài test
+                    </Button>
+                  </div>
+                ) : sheetOperations.tests.status === 'loading' ? (
+                  <p aria-live="polite">Đang tải bài test…</p>
+                ) : (
+                  <p>Cập nhật lúc {formatStudentUpdateTime(sheetOperations.tests.lastUpdated)}</p>
+                )}
+                {sheetOperations.testAttempts.status === 'error' && (
+                  <Button size="sm" onClick={() => onRetrySheetOperation('test_attempts')}>
+                    Thử lại lượt làm bài
+                  </Button>
+                )}
+              </div>
+            )}
           />
 
           {/* 4. Passed Counselors */}
@@ -302,10 +322,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
         {/* Chart 2: Completed, Pending & Cancelled Booking Chart */}
         <BookingsChart
-          summary={sheetOperations}
-          isLoading={isSheetOperationsLoading}
-          error={sheetOperationsError}
-          onRetry={onRetrySheetOperations}
+          summary={sheetOperations.bookings.data}
+          isLoading={sheetOperations.bookings.status === 'loading'}
+          error={sheetOperations.bookings.error}
+          onRetry={() => onRetrySheetOperation('bookings')}
         />
       </div>
 
