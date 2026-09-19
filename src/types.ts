@@ -152,6 +152,10 @@ export interface Student {
   gender: string | null;
   phoneNumber: string;
   email: string | null;
+  parentId: string | null;
+  parentName: string | null;
+  parentRelationship: string | null;
+  parentIsPrimary: boolean;
   parentPhoneNumber: string | null;
   parentEmail: string | null;
   dateOfBirth: string | null;

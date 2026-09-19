@@ -2,6 +2,16 @@ import {
   enforceCounselorKpiPolicy,
   OFFICIAL_KPI_DEFINITIONS,
 } from '../domain/kpiPolicy';
+import {
+  enrichSheetStudentRows,
+  isInactiveSheetValue,
+  isSheetTrue,
+  normalizedRecordId,
+} from '../domain/sheetStudentPolicy';
+import {
+  calculateSheetOperationsSummary,
+  type SheetOperationsSummary,
+} from '../domain/sheetOperationsPolicy';
 import { getDashboardMetricsByTimeRange, INITIAL_COUNSELORS } from '../mockData';
 import {
   AnalyticsFilterOptions,
@@ -282,6 +292,10 @@ const INITIAL_STUDENTS: Student[] = [
     gender: 'UNSPECIFIED',
     phoneNumber: '000-100-0001',
     email: 'student@example.invalid',
+    parentId: null,
+    parentName: null,
+    parentRelationship: null,
+    parentIsPrimary: false,
     parentPhoneNumber: null,
     parentEmail: null,
     dateOfBirth: '2010-01-01',
@@ -304,6 +318,10 @@ const INITIAL_STUDENTS: Student[] = [
     gender: 'UNSPECIFIED',
     phoneNumber: '000-100-0002',
     email: 'student.thpt@example.invalid',
+    parentId: null,
+    parentName: null,
+    parentRelationship: null,
+    parentIsPrimary: false,
     parentPhoneNumber: null,
     parentEmail: null,
     dateOfBirth: '2008-01-01',
@@ -325,7 +343,15 @@ const getMockStudents = (): Student[] => {
     const stored = window.localStorage.getItem(MOCK_STUDENTS_STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored) as Student[];
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) {
+        return parsed.map((student) => ({
+          ...student,
+          parentId: student.parentId ?? null,
+          parentName: student.parentName ?? null,
+          parentRelationship: student.parentRelationship ?? null,
+          parentIsPrimary: student.parentIsPrimary ?? false,
+        }));
+      }
     }
   } catch {
     // Use in-memory fixtures when storage is unavailable.
@@ -770,18 +796,16 @@ const normalizeStudent = (value: unknown): Student => {
       : Number.isFinite(gradeLevel)
         ? gradeLevel <= 9 ? 'THCS' : 'THPT'
         : null;
-  const rawStudentStatus = toStringValue(pick(value, 'status'), 'ACTIVE').trim().toLowerCase();
+  const rawStudentStatus = toStringValue(pick(value, 'status')).trim().toLowerCase();
   const status: Student['status'] = rawStudentStatus === 'completed'
     || rawStudentStatus.includes('hoàn thành')
     || rawStudentStatus.includes('hoan thanh')
     ? 'COMPLETED'
-    : rawStudentStatus === 'inactive'
-      || rawStudentStatus.includes('ngừng')
-      || rawStudentStatus.includes('ngung')
-      || rawStudentStatus.includes('không hoạt động')
-      || rawStudentStatus.includes('khong hoat dong')
-      ? 'INACTIVE'
-      : 'ACTIVE';
+    : rawStudentStatus === 'active'
+      || rawStudentStatus.includes('đang hoạt động')
+      || rawStudentStatus.includes('dang hoat dong')
+      ? 'ACTIVE'
+      : 'INACTIVE';
   return {
     id,
     externalId: toStringValue(
@@ -794,6 +818,12 @@ const normalizeStudent = (value: unknown): Student => {
     gender: toStringValue(pick(value, 'gender')) || null,
     phoneNumber: toStringValue(pick(value, 'phoneNumber', 'phone_number')),
     email: toStringValue(pick(value, 'email')) || null,
+    parentId: toStringValue(pick(value, 'parentId', 'parent_id')) || null,
+    parentName: toStringValue(pick(value, 'parentName', 'parent_name')) || null,
+    parentRelationship: toStringValue(
+      pick(value, 'parentRelationship', 'parent_relationship', 'relationship'),
+    ) || null,
+    parentIsPrimary: isSheetTrue(pick(value, 'parentIsPrimary', 'parent_is_primary')),
     parentPhoneNumber: toStringValue(
       pick(value, 'parentPhoneNumber', 'parent_phone_number', 'guardianPhoneNumber', 'guardian_phone_number'),
     ) || null,
@@ -1091,12 +1121,29 @@ type SheetMirrorTable =
   | 'counselors'
   | 'parents'
   | 'student_parents'
-  | 'counselor_assignments';
+  | 'counselor_assignments'
+  | 'bookings'
+  | 'tests'
+  | 'test_attempts';
 
 const sheetMirrorRowsCache = new Map<
   SheetMirrorTable,
   { expiresAt: number; rows: JsonRecord[] }
 >();
+
+export const clearStudentSheetMirrorCache = (): void => {
+  const studentTables: SheetMirrorTable[] = [
+    'students',
+    'parents',
+    'student_parents',
+  ];
+  studentTables.forEach((table) => sheetMirrorRowsCache.delete(table));
+};
+
+export const clearDashboardOperationsSheetMirrorCache = (): void => {
+  const operationsTables: SheetMirrorTable[] = ['bookings', 'tests', 'test_attempts'];
+  operationsTables.forEach((table) => sheetMirrorRowsCache.delete(table));
+};
 
 const loadSheetMirrorRows = async (
   session: AuthSession,
@@ -1128,18 +1175,6 @@ const loadSheetMirrorRows = async (
 
   sheetMirrorRowsCache.set(table, { expiresAt: Date.now() + 20000, rows });
   return rows;
-};
-
-const normalizedRecordId = (value: unknown): string =>
-  toStringValue(value).trim().toLowerCase();
-
-const isInactiveSheetValue = (value: unknown): boolean => {
-  const status = toStringValue(value).trim().toLowerCase();
-  return status === 'inactive'
-    || status.includes('ngừng')
-    || status.includes('ngung')
-    || status.includes('không hoạt động')
-    || status.includes('khong hoat dong');
 };
 
 const mergeCounselorProfiles = (
@@ -1204,80 +1239,6 @@ const loadSheetCounselors = async (
     // The Sheet remains authoritative for visible profiles even if KPI enrichment is unavailable.
   }
   return mergeCounselorProfiles(sheetRows, apiCounselors, period);
-};
-
-const enrichSheetStudentRows = (
-  studentRows: JsonRecord[],
-  counselorRows: JsonRecord[],
-  assignmentRows: JsonRecord[],
-  parentRows: JsonRecord[],
-  studentParentRows: JsonRecord[],
-): JsonRecord[] => {
-  const counselorNames = new Map<string, string>();
-  counselorRows.forEach((row) => {
-    const id = normalizedRecordId(pick(row, 'counselor_id', 'external_counselor_id', 'id'));
-    if (!id || isInactiveSheetValue(pick(row, 'status'))) return;
-    const firstName = toStringValue(pick(row, 'first_name', 'firstName'));
-    const lastName = toStringValue(pick(row, 'last_name', 'lastName'));
-    counselorNames.set(
-      id,
-      toStringValue(pick(row, 'name', 'full_name'), `${firstName} ${lastName}`.trim()),
-    );
-  });
-
-  const assignments = new Map<string, JsonRecord>();
-  assignmentRows.forEach((row) => {
-    if (isInactiveSheetValue(pick(row, 'status', 'assignment_status'))) return;
-    if (toStringValue(pick(row, 'ended_at', 'assignment_ended_at'))) return;
-    const studentId = normalizedRecordId(pick(row, 'student_id', 'external_student_id'));
-    if (studentId) assignments.set(studentId, row);
-  });
-
-  const parents = new Map<string, JsonRecord>();
-  parentRows.forEach((row) => {
-    const id = normalizedRecordId(pick(row, 'parent_id', 'id'));
-    if (id && !isInactiveSheetValue(pick(row, 'status'))) parents.set(id, row);
-  });
-
-  const parentByStudent = new Map<string, JsonRecord>();
-  studentParentRows.forEach((link) => {
-    if (isInactiveSheetValue(pick(link, 'status'))) return;
-    const studentId = normalizedRecordId(pick(link, 'student_id', 'external_student_id'));
-    const parentId = normalizedRecordId(pick(link, 'parent_id'));
-    const parent = parents.get(parentId);
-    if (studentId && parent) parentByStudent.set(studentId, parent);
-  });
-
-  return studentRows.map((row) => {
-    const studentId = normalizedRecordId(pick(row, 'student_id', 'external_student_id', 'id'));
-    const assignment = assignments.get(studentId);
-    const counselorId = toStringValue(
-      pick(assignment ?? {}, 'counselor_id', 'external_counselor_id'),
-      toStringValue(pick(row, 'assigned_counselor_id')),
-    );
-    const parent = parentByStudent.get(studentId);
-    return {
-      ...row,
-      assigned_counselor_id: counselorId || null,
-      assigned_counselor_name: counselorNames.get(normalizedRecordId(counselorId))
-        ?? toStringValue(pick(row, 'assigned_counselor_name'))
-        ?? null,
-      assignment_status: assignment
-        ? toStringValue(pick(assignment, 'status', 'assignment_status'), 'ACTIVE')
-        : pick(row, 'assignment_status') ?? null,
-      assignment_ended_at: assignment
-        ? pick(assignment, 'ended_at', 'assignment_ended_at') ?? null
-        : pick(row, 'assignment_ended_at') ?? null,
-      parent_phone_number: toStringValue(
-        pick(row, 'parent_phone_number'),
-        toStringValue(pick(parent ?? {}, 'phone_number', 'phoneNumber')),
-      ) || null,
-      parent_email: toStringValue(
-        pick(row, 'parent_email'),
-        toStringValue(pick(parent ?? {}, 'email')),
-      ) || null,
-    };
-  });
 };
 
 export const loginAdmin = async (credentials: LoginCredentials): Promise<AuthSession> => {
@@ -1687,18 +1648,36 @@ export const loadStudents = async (
   if (!isRemoteApiConfigured || session.source === 'mock') {
     return getMockStudents().filter((student) => student.status === 'ACTIVE');
   }
-  const [students, counselors, assignments] = await Promise.all([
+  const [students, counselors, assignments, parents, studentParents] = await Promise.all([
     loadSheetMirrorRows(session, 'students', signal),
     loadSheetMirrorRows(session, 'counselors', signal),
     loadSheetMirrorRows(session, 'counselor_assignments', signal),
+    loadSheetMirrorRows(session, 'parents', signal),
+    loadSheetMirrorRows(session, 'student_parents', signal),
   ]);
   return enrichSheetStudentRows(
     students,
     counselors,
     assignments,
-    [],
-    [],
+    parents,
+    studentParents,
   ).map(normalizeStudent).filter((student) => student.status !== 'INACTIVE');
+};
+
+export const loadDashboardSheetOperations = async (
+  session: AuthSession,
+  period: TimeRange,
+  signal?: AbortSignal,
+): Promise<SheetOperationsSummary> => {
+  if (!isRemoteApiConfigured || session.source === 'mock') {
+    return calculateSheetOperationsSummary([], [], [], period);
+  }
+  const [bookings, tests, testAttempts] = await Promise.all([
+    loadSheetMirrorRows(session, 'bookings', signal),
+    loadSheetMirrorRows(session, 'tests', signal),
+    loadSheetMirrorRows(session, 'test_attempts', signal),
+  ]);
+  return calculateSheetOperationsSummary(bookings, tests, testAttempts, period);
 };
 
 export const createStudent = async (
@@ -1714,6 +1693,10 @@ export const createStudent = async (
       gender: input.gender ?? null,
       phoneNumber: input.phoneNumber,
       email: input.email ?? null,
+      parentId: null,
+      parentName: null,
+      parentRelationship: null,
+      parentIsPrimary: false,
       parentPhoneNumber: input.parentPhoneNumber ?? null,
       parentEmail: input.parentEmail ?? null,
       dateOfBirth: input.dateOfBirth ?? null,

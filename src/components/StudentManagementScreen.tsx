@@ -43,6 +43,34 @@ const getStudentStatusPresentation = (student: Student) => ({
       : 'Ngừng theo dõi',
 });
 
+const ParentContact = ({ student }: { student: Student }) => {
+  if (!student.parentId) {
+    return <p className="text-slate-500">Chưa có thông tin phụ huynh</p>;
+  }
+
+  const identity = [student.parentName || student.parentId, student.parentRelationship]
+    .filter(Boolean)
+    .join(' · ');
+
+  return (
+    <div className="min-w-0 space-y-1">
+      {identity && <p className="break-words font-medium text-slate-800">{identity}</p>}
+      {student.parentPhoneNumber && (
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Phone className="size-3.5 shrink-0 text-slate-400" />
+          <span className="min-w-0 break-all tabular-nums">{student.parentPhoneNumber}</span>
+        </div>
+      )}
+      {student.parentEmail && (
+        <div className="flex min-w-0 items-center gap-1.5 text-slate-500">
+          <Mail className="size-3.5 shrink-0" />
+          <span className="min-w-0 break-all">{student.parentEmail}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = ({
   students,
   isAdmin,
@@ -87,6 +115,8 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
         student.name,
         student.email ?? '',
         student.phoneNumber,
+        student.parentName ?? '',
+        student.parentRelationship ?? '',
         student.parentEmail ?? '',
         student.parentPhoneNumber ?? '',
       ]
@@ -304,8 +334,7 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                     <div className="min-w-0">
                       <dt className="text-xs font-medium text-slate-500">Liên hệ phụ huynh</dt>
                       <dd className="mt-1 space-y-1 text-xs">
-                        <div className="flex items-center gap-1.5"><Phone className="size-3.5 shrink-0 text-slate-400" /><span className="min-w-0 break-all tabular-nums">{student.parentPhoneNumber ?? 'Chưa có SĐT'}</span></div>
-                        <div className="flex items-center gap-1.5 text-slate-500"><Mail className="size-3.5 shrink-0" /><span className="min-w-0 break-all">{student.parentEmail ?? 'Chưa có email'}</span></div>
+                        <ParentContact student={student} />
                       </dd>
                     </div>
                     <div>
@@ -356,14 +385,7 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                       <div className="mt-1 flex items-center gap-1.5 text-slate-500"><Mail className="size-3.5 shrink-0" /><span className="truncate">{student.email ?? 'Chưa có email'}</span></div>
                     </td>
                     <td className="px-3 py-3 align-top text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <Phone className="size-3.5 shrink-0 text-slate-400" />
-                        <span className="truncate tabular-nums">{student.parentPhoneNumber ?? 'Chưa có SĐT'}</span>
-                      </div>
-                      <div className="mt-1 flex items-center gap-1.5 text-slate-500">
-                        <Mail className="size-3.5 shrink-0" />
-                        <span className="truncate">{student.parentEmail ?? 'Chưa có email'}</span>
-                      </div>
+                      <ParentContact student={student} />
                     </td>
                     <td className="px-3 py-3 align-top text-xs tabular-nums">{student.dateOfBirth ?? '—'}</td>
                     <td className="px-3 py-3 align-top">

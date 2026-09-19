@@ -35,6 +35,9 @@ import {
   googleStudentThptEntryUrl,
   googleCounselorEntryUrl,
   analyticsSyncIntervalMs,
+  clearDashboardOperationsSheetMirrorCache,
+  clearStudentSheetMirrorCache,
+  loadDashboardSheetOperations,
   studentSyncIntervalMs,
   restoreSession,
   saveSession,
@@ -42,6 +45,8 @@ import {
   updateCounselor,
   updateStudent,
 } from './services/api';
+import { countActiveStudentsByLevel } from './domain/sheetStudentPolicy';
+import type { SheetOperationsSummary } from './domain/sheetOperationsPolicy';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { LoginScreen } from './components/LoginScreen';
@@ -122,6 +127,12 @@ export default function App() {
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(Boolean(session));
   const [isStudentsLoading, setIsStudentsLoading] = useState(Boolean(session));
   const [studentsError, setStudentsError] = useState<string | null>(null);
+  const [studentsLastUpdated, setStudentsLastUpdated] = useState<string | null>(null);
+  const [sheetOperations, setSheetOperations] = useState<SheetOperationsSummary | null>(null);
+  const [isSheetOperationsLoading, setIsSheetOperationsLoading] = useState(Boolean(session));
+  const [sheetOperationsError, setSheetOperationsError] = useState<string | null>(null);
+  const [sheetOperationsLastUpdated, setSheetOperationsLastUpdated] = useState<string | null>(null);
+  const [sheetOperationsRefreshKey, setSheetOperationsRefreshKey] = useState(0);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [initialCounselorFilter, setInitialCounselorFilter] =
@@ -137,13 +148,22 @@ export default function App() {
     [timeRange, counselors],
   );
 
+  const activeStudentSummary = useMemo(
+    () => countActiveStudentsByLevel(students),
+    [students],
+  );
+
   // API totals and trend data are used when available. Counselor pass/fail values
   // always come from the frontend's strict five-KPI policy.
   const dashboardMetrics = useMemo<DashboardMetrics>(() => {
-    if (!remoteDashboard) return derivedDashboard;
+    if (!remoteDashboard) {
+      return { ...derivedDashboard, totalStudents: activeStudentSummary.total };
+    }
 
     return {
       ...remoteDashboard,
+      // Student totals are authoritative only from the Sheet Mirror student load.
+      totalStudents: activeStudentSummary.total,
       activeCounselors: derivedDashboard.activeCounselors,
       passedCounselors: derivedDashboard.passedCounselors,
       notPassedCounselors: derivedDashboard.notPassedCounselors,
@@ -153,7 +173,7 @@ export default function App() {
           ? remoteDashboard.monthlyTrends
           : derivedDashboard.monthlyTrends,
     };
-  }, [derivedDashboard, remoteDashboard]);
+  }, [activeStudentSummary.total, derivedDashboard, remoteDashboard]);
 
   useEffect(() => {
     if (!session || session.user.roleCode !== 'admin') {
@@ -235,9 +255,14 @@ export default function App() {
     const controller = new AbortController();
     setIsStudentsLoading(true);
     setStudentsError(null);
+    setStudents([]);
+    setStudentsLastUpdated(null);
     loadStudents(session, controller.signal)
       .then((result) => {
-        if (isCurrentRequest) setStudents(result);
+        if (isCurrentRequest) {
+          setStudents(result);
+          setStudentsLastUpdated(new Date().toISOString());
+        }
       })
       .catch((error) => {
         if (isCurrentRequest) {
@@ -254,6 +279,42 @@ export default function App() {
   }, [session, refreshKey]);
 
   useEffect(() => {
+    if (!session) {
+      setIsSheetOperationsLoading(false);
+      return;
+    }
+    let isCurrentRequest = true;
+    const controller = new AbortController();
+    setIsSheetOperationsLoading(true);
+    setSheetOperationsError(null);
+    setSheetOperations(null);
+    setSheetOperationsLastUpdated(null);
+
+    loadDashboardSheetOperations(session, timeRange, controller.signal)
+      .then((result) => {
+        if (!isCurrentRequest) return;
+        setSheetOperations(result);
+        setSheetOperationsLastUpdated(new Date().toISOString());
+      })
+      .catch((error) => {
+        if (!isCurrentRequest) return;
+        setSheetOperationsError(
+          error instanceof Error
+            ? error.message
+            : 'Không thể tải dữ liệu lịch hẹn và bài test từ Sheet Mirror.',
+        );
+      })
+      .finally(() => {
+        if (isCurrentRequest) setIsSheetOperationsLoading(false);
+      });
+
+    return () => {
+      isCurrentRequest = false;
+      controller.abort();
+    };
+  }, [session, timeRange, sheetOperationsRefreshKey]);
+
+  useEffect(() => {
     if (!session) return;
     const activeControllers = new Set<AbortController>();
     const intervalId = window.setInterval(() => {
@@ -264,7 +325,10 @@ export default function App() {
         pendingRequests -= 1;
         if (pendingRequests === 0) activeControllers.delete(controller);
       };
-      loadStudents(session, controller.signal).then(setStudents).catch(() => {
+      loadStudents(session, controller.signal).then((result) => {
+        setStudents(result);
+        setStudentsLastUpdated(new Date().toISOString());
+      }).catch(() => {
         // Keep the last successful list; the next interval retries automatically.
       }).finally(markRequestFinished);
       if (session.user.roleCode === 'admin') {
@@ -399,6 +463,10 @@ export default function App() {
     setRemoteDashboard(null);
     setDataError(null);
     setStudentsError(null);
+    setStudentsLastUpdated(null);
+    setSheetOperations(null);
+    setSheetOperationsError(null);
+    setSheetOperationsLastUpdated(null);
     setDataWarning(null);
     setAnalyticsError(null);
     setAuditLogs([]);
@@ -452,6 +520,22 @@ export default function App() {
     if (!session) return;
     await deactivateStudent(session, id);
     setStudents((current) => current.filter((student) => student.id !== id));
+  };
+
+  const handleStudentsRefresh = () => {
+    clearStudentSheetMirrorCache();
+    setStudents([]);
+    setStudentsError(null);
+    setStudentsLastUpdated(null);
+    setRefreshKey((key) => key + 1);
+  };
+
+  const handleSheetOperationsRefresh = () => {
+    clearDashboardOperationsSheetMirrorCache();
+    setSheetOperations(null);
+    setSheetOperationsError(null);
+    setSheetOperationsLastUpdated(null);
+    setSheetOperationsRefreshKey((key) => key + 1);
   };
 
   const handleNavigate = (screen: ScreenType) => {
@@ -567,7 +651,12 @@ export default function App() {
               title="Không thể tải dữ liệu quản trị."
               className="mb-5"
               action={(
-                <Button size="sm" onClick={() => setRefreshKey((key) => key + 1)}>
+                <Button
+                  size="sm"
+                  onClick={currentScreen === 'students'
+                    ? handleStudentsRefresh
+                    : () => setRefreshKey((key) => key + 1)}
+                >
                   <RefreshCw className="size-3.5" /> Thử lại
                 </Button>
               )}
@@ -622,7 +711,7 @@ export default function App() {
                       thcs: googleStudentThcsEntryUrl,
                       thpt: googleStudentThptEntryUrl,
                     }}
-                    onRefresh={() => setRefreshKey((key) => key + 1)}
+                    onRefresh={handleStudentsRefresh}
                     isRefreshing={isStudentsLoading}
                   />
                 </motion.div>
@@ -639,6 +728,16 @@ export default function App() {
                   <DashboardScreen
                     metrics={dashboardMetrics}
                     counselors={counselors}
+                    activeStudentSummary={activeStudentSummary}
+                    isStudentsLoading={isStudentsLoading}
+                    studentsError={studentsError}
+                    studentsLastUpdated={studentsLastUpdated}
+                    onRetryStudents={handleStudentsRefresh}
+                    sheetOperations={sheetOperations}
+                    isSheetOperationsLoading={isSheetOperationsLoading}
+                    sheetOperationsError={sheetOperationsError}
+                    sheetOperationsLastUpdated={sheetOperationsLastUpdated}
+                    onRetrySheetOperations={handleSheetOperationsRefresh}
                     timeRange={timeRange}
                     onTimeRangeChange={setTimeRange}
                     onNavigate={handleNavigate}

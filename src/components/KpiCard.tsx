@@ -13,6 +13,7 @@ interface KpiCardProps {
     isPositive: boolean;
     label: string;
   };
+  footer?: React.ReactNode;
   onClick?: () => void;
 }
 
@@ -24,6 +25,7 @@ export const KpiCard: React.FC<KpiCardProps> = ({
   icon: Icon,
   variant = 'default',
   trend,
+  footer,
   onClick,
 }) => {
   const getVariantStyles = () => {
@@ -68,6 +70,7 @@ export const KpiCard: React.FC<KpiCardProps> = ({
             {trend.isPositive ? 'Tăng' : 'Giảm'} {trend.value} {trend.label}
           </p>
         )}
+        {footer}
       </div>
     </>
   );

@@ -12,6 +12,8 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { Counselor, DashboardMetrics, TimeRange, ScreenType } from '../types';
+import type { ActiveStudentSummary } from '../domain/sheetStudentPolicy';
+import type { SheetOperationsSummary } from '../domain/sheetOperationsPolicy';
 import { getCounselorEvaluation, PERFORMANCE_KPI_COUNT } from '../domain/kpiPolicy';
 import { KpiCard } from './KpiCard';
 import { CounselorPassChart, BookingsChart } from './Charts';
@@ -27,6 +29,16 @@ interface DashboardScreenProps {
   onFilterCounselorsStatus?: (status: 'all' | 'pass' | 'not-pass') => void;
   onExport: () => void;
   isExporting: boolean;
+  activeStudentSummary: ActiveStudentSummary;
+  isStudentsLoading: boolean;
+  studentsError: string | null;
+  studentsLastUpdated: string | null;
+  onRetryStudents: () => void;
+  sheetOperations: SheetOperationsSummary | null;
+  isSheetOperationsLoading: boolean;
+  sheetOperationsError: string | null;
+  sheetOperationsLastUpdated: string | null;
+  onRetrySheetOperations: () => void;
 }
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({
@@ -39,6 +51,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onFilterCounselorsStatus,
   onExport,
   isExporting,
+  activeStudentSummary,
+  isStudentsLoading,
+  studentsError,
+  studentsLastUpdated,
+  onRetryStudents,
+  sheetOperations,
+  isSheetOperationsLoading,
+  sheetOperationsError,
+  sheetOperationsLastUpdated,
+  onRetrySheetOperations,
 }) => {
   const getTimeLabel = () => {
     switch (timeRange) {
@@ -74,6 +96,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       onFilterCounselorsStatus(status);
     }
     onNavigate('counselors');
+  };
+
+  const formatStudentUpdateTime = (value: string | null) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
@@ -120,19 +149,40 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         </div>
 
         <div className="grid grid-cols-1 border-y border-rule bg-white sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {/* 1. Total Students */}
+          {/* 1. Active students from Sheet Mirror */}
           <KpiCard
             id="kpi-card-total-students"
-            title="Tổng số học sinh"
-            value={metrics.totalStudents.toLocaleString('vi-VN')}
-            subtitle="Tải ca đang hoạt động"
+            title="Học sinh đang hoạt động"
+            value={isStudentsLoading || studentsError
+              ? '—'
+              : activeStudentSummary.total.toLocaleString('vi-VN')}
+            subtitle="Hồ sơ đang được theo dõi"
             icon={Users}
             variant="blue"
-            trend={{
-              value: '4.2%',
-              isPositive: true,
-              label: 'so với kỳ trước',
-            }}
+            footer={(
+              <div className="mt-1 space-y-1.5">
+                <p className="text-slate-600">Gồm chờ chọn lịch và đang tư vấn</p>
+                {studentsError ? (
+                  <div role="alert" className="space-y-2 text-brick-700">
+                    <p>Không thể tải dữ liệu học sinh từ Sheet Mirror.</p>
+                    <Button size="sm" onClick={onRetryStudents}>
+                      Thử lại
+                    </Button>
+                  </div>
+                ) : isStudentsLoading ? (
+                  <p className="text-slate-400" aria-live="polite">Đang tải Sheet Mirror…</p>
+                ) : (
+                  <>
+                    <p className="font-medium text-slate-700">
+                      THCS {activeStudentSummary.thcs} · THPT {activeStudentSummary.thpt}
+                    </p>
+                    <p className="text-slate-500">
+                      Cập nhật lúc {formatStudentUpdateTime(studentsLastUpdated)}
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
           />
 
           {/* 2. Active Counselors */}
@@ -154,24 +204,52 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           <KpiCard
             id="kpi-card-total-bookings"
             title="Tổng số lịch hẹn"
-            value={metrics.totalBookings.toLocaleString('vi-VN')}
+            value={isSheetOperationsLoading || sheetOperationsError || !sheetOperations
+              ? '—'
+              : sheetOperations.totalBookings.toLocaleString('vi-VN')}
             subtitle="Tiếp nhận và phiên tham vấn"
             icon={CalendarCheck}
             variant="default"
-            trend={{
-              value: '8.5%',
-              isPositive: true,
-              label: 'so với tháng trước',
-            }}
+            trend={sheetOperations
+              && sheetOperations.bookingGrowthPercent !== null
+              && sheetOperations.bookingGrowthPercent !== 0
+              ? {
+                  value: `${Math.abs(sheetOperations.bookingGrowthPercent).toLocaleString('vi-VN')}%`,
+                  isPositive: sheetOperations.bookingGrowthPercent > 0,
+                  label: 'so với kỳ trước',
+                }
+              : undefined}
+            footer={(
+              <div className="mt-1 text-slate-500">
+                {sheetOperationsError ? (
+                  <p>Dữ liệu Sheet Mirror chưa sẵn sàng</p>
+                ) : isSheetOperationsLoading || !sheetOperations ? (
+                  <p aria-live="polite">Đang tải Sheet Mirror…</p>
+                ) : sheetOperations.bookingGrowthPercent === 0 ? (
+                  <p>Không đổi so với kỳ trước</p>
+                ) : sheetOperations.bookingGrowthPercent === null ? (
+                  <p>Cập nhật từ Google Sheet</p>
+                ) : null}
+              </div>
+            )}
           />
 
           <KpiCard
             id="kpi-card-total-tests"
-            title="Bài test áp dụng"
-            value={metrics.totalTests.toLocaleString('vi-VN')}
-            subtitle={`${metrics.totalTestAttempts.toLocaleString('vi-VN')} lượt học sinh làm bài`}
+            title="Bài test đang hoạt động"
+            value={isSheetOperationsLoading || sheetOperationsError || !sheetOperations
+              ? '—'
+              : sheetOperations.activeTests.toLocaleString('vi-VN')}
+            subtitle={sheetOperations && !sheetOperationsError && !isSheetOperationsLoading
+              ? `${sheetOperations.totalTestAttempts.toLocaleString('vi-VN')} lượt học sinh làm bài`
+              : 'Dữ liệu từ Google Sheet'}
             icon={FlaskConical}
             variant="default"
+            footer={sheetOperations && !sheetOperationsError && !isSheetOperationsLoading ? (
+              <p className="mt-1 text-slate-500">
+                Cập nhật lúc {formatStudentUpdateTime(sheetOperationsLastUpdated)}
+              </p>
+            ) : undefined}
           />
 
           {/* 4. Passed Counselors */}
@@ -223,7 +301,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         />
 
         {/* Chart 2: Completed, Pending & Cancelled Booking Chart */}
-        <BookingsChart metrics={metrics} />
+        <BookingsChart
+          summary={sheetOperations}
+          isLoading={isSheetOperationsLoading}
+          error={sheetOperationsError}
+          onRetry={onRetrySheetOperations}
+        />
       </div>
 
       {/* Counselor Fast-Access Roster Preview & Performance Jump */}
