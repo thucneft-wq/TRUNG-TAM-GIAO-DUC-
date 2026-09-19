@@ -1026,14 +1026,21 @@ const requestJson = async (
   endpoint: string,
   options: RequestInit = {},
   query?: Record<string, string>,
-  timeoutMs = API_TIMEOUT_MS,
 ): Promise<unknown> => {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  const callerSignal = options.signal;
+  const abortFromCaller = () => controller.abort(callerSignal?.reason);
+  if (callerSignal?.aborted) {
+    abortFromCaller();
+  } else {
+    callerSignal?.addEventListener('abort', abortFromCaller, { once: true });
+  }
+  const timeoutId = window.setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const { signal: _callerSignal, ...fetchOptions } = options;
 
   try {
     const response = await fetch(buildUrl(endpoint, query), {
-      ...options,
+      ...fetchOptions,
       credentials: 'include',
       headers: {
         Accept: 'application/json',
@@ -1066,11 +1073,13 @@ const requestJson = async (
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new ApiError(`Yêu cầu API đã quá thời gian chờ ${timeoutMs} mili giây.`);
+      if (callerSignal?.aborted) throw error;
+      throw new ApiError(`Yêu cầu API đã quá thời gian chờ ${API_TIMEOUT_MS} mili giây.`);
     }
     throw new ApiError('Không thể kết nối đến API. Vui lòng kiểm tra máy chủ và kết nối mạng.');
   } finally {
     window.clearTimeout(timeoutId);
+    callerSignal?.removeEventListener('abort', abortFromCaller);
   }
 };
 
@@ -1086,51 +1095,39 @@ type SheetMirrorTable =
 
 const sheetMirrorRowsCache = new Map<
   SheetMirrorTable,
-  { expiresAt: number; request: Promise<JsonRecord[]> }
+  { expiresAt: number; rows: JsonRecord[] }
 >();
 
 const loadSheetMirrorRows = async (
   session: AuthSession,
   table: SheetMirrorTable,
+  signal?: AbortSignal,
 ): Promise<JsonRecord[]> => {
   const cached = sheetMirrorRowsCache.get(table);
-  if (cached && cached.expiresAt > Date.now()) return cached.request;
+  if (cached && cached.expiresAt > Date.now()) return cached.rows;
 
-  const request = (async (): Promise<JsonRecord[]> => {
-    const endpoint = SHEET_MIRROR_ENDPOINT.replace(':table', encodeURIComponent(table));
-    const rows: JsonRecord[] = [];
-    const pageSize = 500;
+  const endpoint = SHEET_MIRROR_ENDPOINT.replace(':table', encodeURIComponent(table));
+  const rows: JsonRecord[] = [];
+  const pageSize = 500;
 
-    for (let page = 1; page <= 100; page += 1) {
-      const payload = await requestJson(
-        endpoint,
-        { headers: authorizationHeaders(session), cache: 'no-store' },
-        { page: String(page), pageSize: String(pageSize) },
-        60000,
-      );
-      if (!isRecord(payload) || payload.ok !== true || !Array.isArray(payload.data)) {
-        throw new ApiError(`Sheet ${table} không trả về danh sách hợp lệ.`);
-      }
-
-      const pageRows = payload.data.filter(isRecord);
-      rows.push(...pageRows);
-      const total = toNumberValue(payload.total, rows.length);
-      if (pageRows.length === 0 || rows.length >= total) break;
+  for (let page = 1; page <= 100; page += 1) {
+    const payload = await requestJson(
+      endpoint,
+      { headers: authorizationHeaders(session), cache: 'no-store', signal },
+      { page: String(page), pageSize: String(pageSize) },
+    );
+    if (!isRecord(payload) || payload.ok !== true || !Array.isArray(payload.data)) {
+      throw new ApiError(`Sheet ${table} không trả về danh sách hợp lệ.`);
     }
 
-    return rows;
-  })();
-
-  const cacheEntry = { expiresAt: Number.POSITIVE_INFINITY, request };
-  sheetMirrorRowsCache.set(table, cacheEntry);
-  try {
-    const rows = await request;
-    cacheEntry.expiresAt = Date.now() + 20000;
-    return rows;
-  } catch (error) {
-    sheetMirrorRowsCache.delete(table);
-    throw error;
+    const pageRows = payload.data.filter(isRecord);
+    rows.push(...pageRows);
+    const total = toNumberValue(payload.total, rows.length);
+    if (pageRows.length === 0 || rows.length >= total) break;
   }
+
+  sheetMirrorRowsCache.set(table, { expiresAt: Date.now() + 20000, rows });
+  return rows;
 };
 
 const normalizedRecordId = (value: unknown): string =>
@@ -1189,19 +1186,21 @@ const mergeCounselorProfiles = (
 const loadSheetCounselors = async (
   session: AuthSession,
   period: TimeRange,
+  signal?: AbortSignal,
 ): Promise<Counselor[]> => {
-  const sheetRows = await loadSheetMirrorRows(session, 'counselors');
+  const sheetRows = await loadSheetMirrorRows(session, 'counselors', signal);
   let apiCounselors: Counselor[] = [];
   try {
     const apiPayload = await requestJson(
       COUNSELORS_ENDPOINT,
-      { headers: authorizationHeaders(session) },
+      { headers: authorizationHeaders(session), signal },
       { period: API_PERIOD_BY_TIME_RANGE[period] },
     );
     apiCounselors = extractCounselorArray(apiPayload).map((value, index) =>
       normalizeCounselor(value, index, period),
     );
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error;
     // The Sheet remains authoritative for visible profiles even if KPI enrichment is unavailable.
   }
   return mergeCounselorProfiles(sheetRows, apiCounselors, period);
@@ -1337,6 +1336,7 @@ export const loginAdmin = async (credentials: LoginCredentials): Promise<AuthSes
 export const loadAdminData = async (
   session: AuthSession,
   timeRange: TimeRange,
+  signal?: AbortSignal,
 ): Promise<AdminDataResult> => {
   if (!isRemoteApiConfigured || session.source === 'mock') {
     const counselors = getActiveMockCounselors();
@@ -1347,12 +1347,12 @@ export const loadAdminData = async (
     };
   }
 
-  const counselors = await loadSheetCounselors(session, timeRange);
+  const counselors = await loadSheetCounselors(session, timeRange, signal);
 
   try {
     const dashboardPayload = await requestJson(
       DASHBOARD_ENDPOINT,
-      { headers: authorizationHeaders(session) },
+      { headers: authorizationHeaders(session), signal },
       { period: API_PERIOD_BY_TIME_RANGE[timeRange] },
     );
     return {
@@ -1375,6 +1375,7 @@ export const loadAnalyticsData = async (
   session: AuthSession,
   timeRange: TimeRange,
   filters: AnalyticsFilters,
+  signal?: AbortSignal,
 ): Promise<AnalyticsDataResult> => {
   if (!isRemoteApiConfigured || session.source === 'mock') {
     const counselors = getActiveMockCounselors().filter(
@@ -1449,6 +1450,7 @@ export const loadAnalyticsData = async (
   const analyticsRequestOptions: RequestInit = {
     headers: authorizationHeaders(session),
     cache: 'no-store',
+    signal,
   };
   const [filterPayload, studentPayload, feedbackPayload] = await Promise.all([
     requestJson(ANALYTICS_FILTERS_ENDPOINT, analyticsRequestOptions),
@@ -1463,11 +1465,14 @@ export const loadAnalyticsData = async (
   };
 };
 
-export const loadAuditLogs = async (session: AuthSession): Promise<AuditLogItem[]> => {
+export const loadAuditLogs = async (
+  session: AuthSession,
+  signal?: AbortSignal,
+): Promise<AuditLogItem[]> => {
   if (!isRemoteApiConfigured || session.source === 'mock') return [];
   const payload = await requestJson(
     AUDIT_LOGS_ENDPOINT,
-    { headers: authorizationHeaders(session) },
+    { headers: authorizationHeaders(session), signal },
     { limit: '100' },
   );
   const root = unwrapRecord(payload);
@@ -1675,14 +1680,17 @@ export const deactivateCounselor = async (
   });
 };
 
-export const loadStudents = async (session: AuthSession): Promise<Student[]> => {
+export const loadStudents = async (
+  session: AuthSession,
+  signal?: AbortSignal,
+): Promise<Student[]> => {
   if (!isRemoteApiConfigured || session.source === 'mock') {
     return getMockStudents().filter((student) => student.status === 'ACTIVE');
   }
   const [students, counselors, assignments] = await Promise.all([
-    loadSheetMirrorRows(session, 'students'),
-    loadSheetMirrorRows(session, 'counselors'),
-    loadSheetMirrorRows(session, 'counselor_assignments'),
+    loadSheetMirrorRows(session, 'students', signal),
+    loadSheetMirrorRows(session, 'counselors', signal),
+    loadSheetMirrorRows(session, 'counselor_assignments', signal),
   ]);
   return enrichSheetStudentRows(
     students,

@@ -4,11 +4,8 @@ import {
   Lock,
   Mail,
   ShieldCheck,
-  ArrowRight,
-  AlertCircle,
   Eye,
   EyeOff,
-  CheckCircle2,
 } from 'lucide-react';
 import { AuthSession } from '../types';
 import {
@@ -16,6 +13,7 @@ import {
   isRemoteApiConfigured,
   loginAdmin,
 } from '../services/api';
+import { Alert, Button, IconButton, TextInput } from './ui/Primitives';
 
 interface LoginScreenProps {
   onLoginSuccess: (session: AuthSession) => void;
@@ -66,156 +64,126 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div
-      id="login-screen-wrapper"
-      className="min-h-screen bg-slate-900 text-slate-100 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden"
-    >
-      {/* Background Decorative Healthcare Gradients */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div id="login-screen-wrapper" className="min-h-screen bg-paper text-ink-950">
+      <div aria-hidden="true" className="fixed inset-y-0 left-0 w-2 bg-academic-700 sm:w-3" />
 
-      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
-        {/* Brand Icon & Heading */}
-        <div className="flex justify-center">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-teal-500 flex items-center justify-center text-white shadow-xl shadow-blue-500/20 border border-blue-400/30">
-            <HeartPulse className="w-8 h-8" />
-          </div>
-        </div>
-
-        <div className="mt-4 text-center">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-teal-950/80 text-teal-400 border border-teal-800/80 mb-2">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            Cổng quản trị nội bộ
-          </div>
-          <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-            Trung tâm Tham vấn Tâm lý Học đường
-          </h2>
-          <p className="mt-1 text-xs text-slate-400 font-medium">
-            Một tài khoản Admin duy nhất cho phiên bản MVP
-          </p>
-        </div>
-
-        {/* Login Card */}
-        <div className="mt-8 bg-slate-800/90 backdrop-blur-md py-8 px-6 sm:px-10 rounded-2xl border border-slate-700/80 shadow-2xl">
-          <form id="login-form" onSubmit={handleSubmit} className="space-y-5">
-            {/* Error Message */}
-            {errorMsg && (
-              <div
-                id="login-error-alert"
-                role="alert"
-                aria-live="assertive"
-                className="p-3.5 rounded-xl bg-rose-950/60 border border-rose-800/80 text-rose-200 text-xs flex items-start gap-2.5 animate-fadeIn"
-              >
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                <div className="font-medium">{errorMsg}</div>
-              </div>
-            )}
-
-            {/* Email Field */}
-            <div>
-              <label
-                htmlFor="input-email"
-                className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5"
-              >
-                Email của đơn vị
-              </label>
-              <div className="relative rounded-lg shadow-inner">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Mail className="w-4 h-4" />
-                </div>
-                <input
-                  id="input-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@campus-counseling.edu"
-                  autoComplete="username"
-                  required
-                  className="block w-full pl-10 pr-3.5 py-2.5 bg-slate-900/90 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-              </div>
+      <main className="mx-auto grid min-h-screen w-full max-w-6xl items-stretch px-6 py-8 sm:px-10 lg:grid-cols-[1.05fr_0.95fr] lg:px-12 lg:py-12">
+        <section className="flex flex-col justify-between border-b border-rule pb-10 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-16">
+          <div>
+            <div className="flex size-12 items-center justify-center rounded border border-academic-700 bg-white text-academic-700">
+              <HeartPulse className="size-6" aria-hidden="true" />
             </div>
+            <h1 className="mt-8 max-w-xl font-display text-3xl font-bold leading-tight text-ink-950 sm:text-4xl lg:text-[2.7rem]">
+              Trung tâm Tham vấn Tâm lý Học đường
+            </h1>
+            <p className="mt-5 max-w-xl text-sm leading-7 text-slate-600 sm:text-base">
+              Cổng vận hành dành cho quản trị viên theo dõi học sinh, tư vấn viên và chất lượng hỗ trợ trong một hệ thống thống nhất.
+            </p>
+          </div>
 
-            {/* Password Field */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label
-                  htmlFor="input-password"
-                  className="block text-xs font-semibold uppercase tracking-wider text-slate-300"
-                >
-                  Mật khẩu
+          <div className="mt-12 max-w-xl border-t border-rule pt-5 lg:mt-16">
+            <div className="flex items-start gap-3 text-sm text-slate-600">
+              <ShieldCheck className="mt-0.5 size-5 shrink-0 text-pine-700" aria-hidden="true" />
+              <p>
+                Quyền truy cập được giới hạn theo vai trò. Dữ liệu nhạy cảm chỉ hiển thị trong phạm vi được cấp.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="flex items-center pt-10 lg:pl-16 lg:pt-0">
+          <div className="w-full max-w-md">
+            <p className="text-sm font-medium text-academic-700">Cổng quản trị nội bộ</p>
+            <h2 className="mt-2 font-display text-2xl font-semibold text-ink-950">Đăng nhập</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Sử dụng tài khoản được trung tâm cấp để tiếp tục.
+            </p>
+
+            <form id="login-form" onSubmit={handleSubmit} className="mt-8 space-y-5" noValidate>
+              {errorMsg && (
+                <Alert tone="error" className="text-xs" title="Không thể đăng nhập.">
+                  <span id="login-error-alert" aria-live="assertive">{errorMsg}</span>
+                </Alert>
+              )}
+
+              <div>
+                <label htmlFor="input-email" className="mb-2 block text-sm font-semibold text-ink-950">
+                  Email của đơn vị
                 </label>
-                <span className="text-2xs text-slate-400">
-                  {isRemoteApiConfigured ? 'Được xác thực bởi máy chủ' : 'Chế độ demo: nhập từ 6 ký tự bất kỳ'}
-                </span>
-              </div>
-              <div className="relative rounded-lg shadow-inner">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Lock className="w-4 h-4" />
+                <div className="relative">
+                  <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                  <TextInput
+                    id="input-email"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="admin@campus-counseling.edu"
+                    autoComplete="username"
+                    required
+                    aria-describedby={errorMsg ? 'login-error-alert' : undefined}
+                    className="pl-10"
+                  />
                 </div>
-                <input
-                  id="input-password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  autoComplete="current-password"
-                  required
-                  className="block w-full pl-10 pr-10 py-2.5 bg-slate-900/90 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-200"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
               </div>
-            </div>
 
-            {/* Sign In Button */}
-            <div>
-              <button
-                id="btn-login-submit"
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-500 hover:to-teal-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-blue-500 shadow-lg shadow-blue-600/30 transition-all duration-200 cursor-pointer disabled:opacity-75"
-              >
-                {isLoading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>{isRemoteApiConfigured ? 'Đang kết nối API hệ thống...' : 'Đang xác thực phiên...'}</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Đăng nhập vào bảng điều khiển</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </div>
+              <div>
+                <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                  <label htmlFor="input-password" className="text-sm font-semibold text-ink-950">
+                    Mật khẩu
+                  </label>
+                  <span className="text-xs text-slate-500">
+                    {isRemoteApiConfigured ? 'Xác thực qua máy chủ' : 'Demo: nhập ít nhất 6 ký tự'}
+                  </span>
+                </div>
+                <div className="relative">
+                  <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                  <TextInput
+                    id="input-password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="••••••••••••"
+                    autoComplete="current-password"
+                    required
+                    aria-describedby={errorMsg ? 'login-error-alert' : undefined}
+                    className="pl-10 pr-12"
+                  />
+                  <IconButton
+                    onClick={() => setShowPassword((visible) => !visible)}
+                    aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    aria-pressed={showPassword}
+                    className="absolute inset-y-0 right-0 size-11 rounded-none border-0"
+                  >
+                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </IconButton>
+                </div>
+              </div>
 
-            {/* Demo account notice */}
-            {!isRemoteApiConfigured && (
-              <div className="pt-2 border-t border-slate-700/60">
-                <p className="text-2xs text-slate-400 text-center">
-                  Chế độ demo chỉ chấp nhận tài khoản Admin đã điền sẵn phía trên.
+              <Button id="btn-login-submit" type="submit" variant="primary" disabled={isLoading} className="w-full">
+                {isLoading && <span className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" aria-hidden="true" />}
+                {isLoading
+                  ? isRemoteApiConfigured ? 'Đang kết nối hệ thống…' : 'Đang xác thực…'
+                  : 'Đăng nhập'}
+              </Button>
+
+              {!isRemoteApiConfigured && (
+                <p className="border-l-2 border-academic-700 pl-3 text-xs leading-5 text-slate-600">
+                  Chế độ demo chỉ chấp nhận tài khoản quản trị đã điền sẵn.
                 </p>
-              </div>
-            )}
-          </form>
+              )}
+            </form>
 
-          {/* Privacy Footnote */}
-          <div className="mt-6 pt-4 border-t border-slate-700/60 flex items-center justify-center gap-2 text-2xs text-slate-400 text-center">
-            <ShieldCheck className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-            <span>
-              {isRemoteApiConfigured
-                ? 'Thông tin đăng nhập được xác thực qua API đã cấu hình'
-                : 'Chế độ MVP cục bộ · Không sử dụng thông tin đăng nhập thật'}
-            </span>
+            <div className="mt-8 flex items-start gap-2 border-t border-rule pt-4 text-xs leading-5 text-slate-500">
+              <ShieldCheck className="mt-0.5 size-4 shrink-0 text-pine-700" aria-hidden="true" />
+              <span>
+                {isRemoteApiConfigured
+                  ? 'Thông tin đăng nhập được xác thực qua API đã cấu hình.'
+                  : 'Môi trường cục bộ không sử dụng thông tin đăng nhập thật.'}
+              </span>
+            </div>
           </div>
-        </div>
-      </div>
+        </section>
+      </main>
     </div>
   );
 };

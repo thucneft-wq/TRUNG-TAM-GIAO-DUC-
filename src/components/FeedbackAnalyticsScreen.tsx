@@ -37,18 +37,17 @@ export const FeedbackAnalyticsScreen: React.FC<FeedbackAnalyticsScreenProps> = (
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl bg-gradient-to-r from-teal-900 via-emerald-900 to-cyan-900 p-6 text-white shadow-lg">
+      <header className="border-b border-rule pb-5">
         <div className="flex items-start gap-3">
-          <div className="rounded-xl bg-white/10 p-2.5"><MessageSquareHeart className="h-6 w-6" /></div>
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-teal-200 bg-teal-50 text-academic-700"><MessageSquareHeart className="h-5 w-5" /></div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-emerald-200">FR-ADM-06</p>
-            <h2 className="mt-1 text-xl font-bold">Phân tích phản hồi học viên</h2>
-            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-emerald-100">
+            <h2 className="page-title">Phân tích phản hồi học viên</h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
               Theo dõi phân bố tích cực, trung lập, tiêu cực và xu hướng điểm đánh giá ở dạng tổng hợp.
             </p>
           </div>
         </div>
-      </div>
+      </header>
 
       <AnalyticsFilterBar
         filters={filters}
@@ -70,7 +69,7 @@ export const FeedbackAnalyticsScreen: React.FC<FeedbackAnalyticsScreenProps> = (
       </div>
 
       {data.suppressed ? (
-        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-950">
+        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-5 text-amber-950">
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
           <div>
             <h3 className="text-sm font-bold">Phân bố feedback đang được ẩn</h3>
@@ -78,14 +77,14 @@ export const FeedbackAnalyticsScreen: React.FC<FeedbackAnalyticsScreenProps> = (
           </div>
         </div>
       ) : data.sampleSize === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+        <div className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center">
           <MessageSquareHeart className="mx-auto h-8 w-8 text-slate-400" />
           <h3 className="mt-3 text-sm font-bold text-slate-800">Chưa có feedback trong kỳ</h3>
           <p className="mt-1 text-xs text-slate-500">Dữ liệu sẽ xuất hiện sau khi feedback được đồng bộ vào SQL.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="rounded-lg border border-rule bg-white p-5">
             <h3 className="text-sm font-bold text-slate-900">Phân bố cảm nhận</h3>
             <div className="mt-5 space-y-5">
               <DistributionRow label="Tích cực" value={data.distribution.positive} maximum={maximum} color="bg-emerald-500" icon={<Smile />} />
@@ -94,14 +93,14 @@ export const FeedbackAnalyticsScreen: React.FC<FeedbackAnalyticsScreenProps> = (
             </div>
           </section>
 
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <section className="overflow-hidden rounded-lg border border-rule bg-white">
             <div className="p-5">
               <h3 className="text-sm font-bold text-slate-900">Xu hướng theo kỳ</h3>
               <p className="mt-1 text-xs text-slate-500">Bảng tổng hợp không chứa nội dung feedback thô.</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="border-y border-slate-200 bg-slate-50 text-2xs uppercase tracking-wider text-slate-500">
+                <thead className="border-y border-slate-200 bg-slate-50 text-xs font-medium text-slate-500">
                   <tr><th className="px-5 py-3">Kỳ</th><th className="px-3 py-3">Tích cực</th><th className="px-3 py-3">Trung lập</th><th className="px-3 py-3">Tiêu cực</th><th className="px-5 py-3 text-right">Điểm TB</th></tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -131,7 +130,7 @@ const SummaryCard = ({ icon, label, value, tone }: { icon: React.ReactNode; labe
     rose: 'border-rose-200 bg-rose-50 text-rose-700',
     amber: 'border-amber-200 bg-amber-50 text-amber-700',
   };
-  return <div className={`rounded-2xl border p-5 ${styles[tone]}`}><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider"><span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>{label}</div><div className="mt-2 text-3xl font-extrabold text-slate-950">{value}</div></div>;
+  return <div className={`rounded-lg border p-5 ${styles[tone]}`}><div className="flex items-center gap-2 text-xs font-semibold"><span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>{label}</div><div className="mt-2 text-3xl font-bold tabular-nums text-ink-950">{value}</div></div>;
 };
 
 const DistributionRow = ({ label, value, maximum, color, icon }: { label: string; value: number; maximum: number; color: string; icon: React.ReactNode }) => (
