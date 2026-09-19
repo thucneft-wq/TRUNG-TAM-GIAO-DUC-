@@ -2,6 +2,23 @@ import {
   enforceCounselorKpiPolicy,
   OFFICIAL_KPI_DEFINITIONS,
 } from '../domain/kpiPolicy';
+import {
+  enrichSheetStudentCounselors,
+  enrichSheetStudentRows,
+  isInactiveSheetValue,
+  isSheetTrue,
+  normalizedRecordId,
+} from '../domain/sheetStudentPolicy';
+import {
+  loadStudentSheetSources,
+  STUDENT_COUNSELOR_WARNING,
+} from '../domain/studentLoadPolicy';
+import { SharedRequestPool } from './sharedRequestPool';
+import {
+  settleSheetOperationSources,
+  type DashboardSheetOperationsState,
+  type SheetOperationSourceKey,
+} from '../domain/sheetOperationsPolicy';
 import { getDashboardMetricsByTimeRange, INITIAL_COUNSELORS } from '../mockData';
 import {
   AnalyticsFilterOptions,
@@ -44,6 +61,12 @@ export interface AnalyticsDataResult {
   filterOptions: AnalyticsFilterOptions;
   studentTrends: StudentTrendAnalytics;
   feedback: FeedbackAnalytics;
+}
+
+export interface StudentLoadResult {
+  students: Student[];
+  counselorDataAvailable: boolean;
+  counselorWarning: string | null;
 }
 
 export const DEMO_ACCOUNTS = [
@@ -282,6 +305,10 @@ const INITIAL_STUDENTS: Student[] = [
     gender: 'UNSPECIFIED',
     phoneNumber: '000-100-0001',
     email: 'student@example.invalid',
+    parentId: null,
+    parentName: null,
+    parentRelationship: null,
+    parentIsPrimary: false,
     parentPhoneNumber: null,
     parentEmail: null,
     dateOfBirth: '2010-01-01',
@@ -304,6 +331,10 @@ const INITIAL_STUDENTS: Student[] = [
     gender: 'UNSPECIFIED',
     phoneNumber: '000-100-0002',
     email: 'student.thpt@example.invalid',
+    parentId: null,
+    parentName: null,
+    parentRelationship: null,
+    parentIsPrimary: false,
     parentPhoneNumber: null,
     parentEmail: null,
     dateOfBirth: '2008-01-01',
@@ -325,7 +356,15 @@ const getMockStudents = (): Student[] => {
     const stored = window.localStorage.getItem(MOCK_STUDENTS_STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored) as Student[];
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) {
+        return parsed.map((student) => ({
+          ...student,
+          parentId: student.parentId ?? null,
+          parentName: student.parentName ?? null,
+          parentRelationship: student.parentRelationship ?? null,
+          parentIsPrimary: student.parentIsPrimary ?? false,
+        }));
+      }
     }
   } catch {
     // Use in-memory fixtures when storage is unavailable.
@@ -770,18 +809,16 @@ const normalizeStudent = (value: unknown): Student => {
       : Number.isFinite(gradeLevel)
         ? gradeLevel <= 9 ? 'THCS' : 'THPT'
         : null;
-  const rawStudentStatus = toStringValue(pick(value, 'status'), 'ACTIVE').trim().toLowerCase();
+  const rawStudentStatus = toStringValue(pick(value, 'status')).trim().toLowerCase();
   const status: Student['status'] = rawStudentStatus === 'completed'
     || rawStudentStatus.includes('hoàn thành')
     || rawStudentStatus.includes('hoan thanh')
     ? 'COMPLETED'
-    : rawStudentStatus === 'inactive'
-      || rawStudentStatus.includes('ngừng')
-      || rawStudentStatus.includes('ngung')
-      || rawStudentStatus.includes('không hoạt động')
-      || rawStudentStatus.includes('khong hoat dong')
-      ? 'INACTIVE'
-      : 'ACTIVE';
+    : rawStudentStatus === 'active'
+      || rawStudentStatus.includes('đang hoạt động')
+      || rawStudentStatus.includes('dang hoat dong')
+      ? 'ACTIVE'
+      : 'INACTIVE';
   return {
     id,
     externalId: toStringValue(
@@ -794,6 +831,12 @@ const normalizeStudent = (value: unknown): Student => {
     gender: toStringValue(pick(value, 'gender')) || null,
     phoneNumber: toStringValue(pick(value, 'phoneNumber', 'phone_number')),
     email: toStringValue(pick(value, 'email')) || null,
+    parentId: toStringValue(pick(value, 'parentId', 'parent_id')) || null,
+    parentName: toStringValue(pick(value, 'parentName', 'parent_name')) || null,
+    parentRelationship: toStringValue(
+      pick(value, 'parentRelationship', 'parent_relationship', 'relationship'),
+    ) || null,
+    parentIsPrimary: isSheetTrue(pick(value, 'parentIsPrimary', 'parent_is_primary')),
     parentPhoneNumber: toStringValue(
       pick(value, 'parentPhoneNumber', 'parent_phone_number', 'guardianPhoneNumber', 'guardian_phone_number'),
     ) || null,
@@ -1091,12 +1134,45 @@ type SheetMirrorTable =
   | 'counselors'
   | 'parents'
   | 'student_parents'
-  | 'counselor_assignments';
+  | 'counselor_assignments'
+  | 'bookings'
+  | 'tests'
+  | 'test_attempts';
 
 const sheetMirrorRowsCache = new Map<
   SheetMirrorTable,
   { expiresAt: number; rows: JsonRecord[] }
 >();
+const sheetMirrorRequestPool = new SharedRequestPool<SheetMirrorTable, JsonRecord[]>();
+
+const clearSheetMirrorTables = (
+  tables: SheetMirrorTable[],
+  abortInFlight = false,
+): void => {
+  tables.forEach((table) => {
+    sheetMirrorRowsCache.delete(table);
+    if (abortInFlight) sheetMirrorRequestPool.abort(table);
+  });
+};
+
+export const clearStudentSheetMirrorCache = (): void => {
+  const studentTables: SheetMirrorTable[] = [
+    'students',
+    'parents',
+    'student_parents',
+  ];
+  clearSheetMirrorTables(studentTables, true);
+};
+
+export const clearStudentCounselorSheetMirrorCache = (): void => {
+  clearSheetMirrorTables(['counselors', 'counselor_assignments'], true);
+};
+
+export const clearDashboardOperationsSheetMirrorCache = (
+  tables: SheetOperationSourceKey[] = ['bookings', 'tests', 'test_attempts'],
+): void => {
+  clearSheetMirrorTables(tables, true);
+};
 
 const loadSheetMirrorRows = async (
   session: AuthSession,
@@ -1106,40 +1182,30 @@ const loadSheetMirrorRows = async (
   const cached = sheetMirrorRowsCache.get(table);
   if (cached && cached.expiresAt > Date.now()) return cached.rows;
 
-  const endpoint = SHEET_MIRROR_ENDPOINT.replace(':table', encodeURIComponent(table));
-  const rows: JsonRecord[] = [];
-  const pageSize = 500;
+  return sheetMirrorRequestPool.run(table, async (sharedSignal) => {
+    const endpoint = SHEET_MIRROR_ENDPOINT.replace(':table', encodeURIComponent(table));
+    const rows: JsonRecord[] = [];
+    const pageSize = 500;
 
-  for (let page = 1; page <= 100; page += 1) {
-    const payload = await requestJson(
-      endpoint,
-      { headers: authorizationHeaders(session), cache: 'no-store', signal },
-      { page: String(page), pageSize: String(pageSize) },
-    );
-    if (!isRecord(payload) || payload.ok !== true || !Array.isArray(payload.data)) {
-      throw new ApiError(`Sheet ${table} không trả về danh sách hợp lệ.`);
+    for (let page = 1; page <= 100; page += 1) {
+      const payload = await requestJson(
+        endpoint,
+        { headers: authorizationHeaders(session), cache: 'no-store', signal: sharedSignal },
+        { page: String(page), pageSize: String(pageSize) },
+      );
+      if (!isRecord(payload) || payload.ok !== true || !Array.isArray(payload.data)) {
+        throw new ApiError(`Sheet ${table} không trả về danh sách hợp lệ.`);
+      }
+
+      const pageRows = payload.data.filter(isRecord);
+      rows.push(...pageRows);
+      const total = toNumberValue(payload.total, rows.length);
+      if (pageRows.length === 0 || rows.length >= total) break;
     }
 
-    const pageRows = payload.data.filter(isRecord);
-    rows.push(...pageRows);
-    const total = toNumberValue(payload.total, rows.length);
-    if (pageRows.length === 0 || rows.length >= total) break;
-  }
-
-  sheetMirrorRowsCache.set(table, { expiresAt: Date.now() + 20000, rows });
-  return rows;
-};
-
-const normalizedRecordId = (value: unknown): string =>
-  toStringValue(value).trim().toLowerCase();
-
-const isInactiveSheetValue = (value: unknown): boolean => {
-  const status = toStringValue(value).trim().toLowerCase();
-  return status === 'inactive'
-    || status.includes('ngừng')
-    || status.includes('ngung')
-    || status.includes('không hoạt động')
-    || status.includes('khong hoat dong');
+    sheetMirrorRowsCache.set(table, { expiresAt: Date.now() + 20000, rows });
+    return rows;
+  }, signal);
 };
 
 const mergeCounselorProfiles = (
@@ -1204,80 +1270,6 @@ const loadSheetCounselors = async (
     // The Sheet remains authoritative for visible profiles even if KPI enrichment is unavailable.
   }
   return mergeCounselorProfiles(sheetRows, apiCounselors, period);
-};
-
-const enrichSheetStudentRows = (
-  studentRows: JsonRecord[],
-  counselorRows: JsonRecord[],
-  assignmentRows: JsonRecord[],
-  parentRows: JsonRecord[],
-  studentParentRows: JsonRecord[],
-): JsonRecord[] => {
-  const counselorNames = new Map<string, string>();
-  counselorRows.forEach((row) => {
-    const id = normalizedRecordId(pick(row, 'counselor_id', 'external_counselor_id', 'id'));
-    if (!id || isInactiveSheetValue(pick(row, 'status'))) return;
-    const firstName = toStringValue(pick(row, 'first_name', 'firstName'));
-    const lastName = toStringValue(pick(row, 'last_name', 'lastName'));
-    counselorNames.set(
-      id,
-      toStringValue(pick(row, 'name', 'full_name'), `${firstName} ${lastName}`.trim()),
-    );
-  });
-
-  const assignments = new Map<string, JsonRecord>();
-  assignmentRows.forEach((row) => {
-    if (isInactiveSheetValue(pick(row, 'status', 'assignment_status'))) return;
-    if (toStringValue(pick(row, 'ended_at', 'assignment_ended_at'))) return;
-    const studentId = normalizedRecordId(pick(row, 'student_id', 'external_student_id'));
-    if (studentId) assignments.set(studentId, row);
-  });
-
-  const parents = new Map<string, JsonRecord>();
-  parentRows.forEach((row) => {
-    const id = normalizedRecordId(pick(row, 'parent_id', 'id'));
-    if (id && !isInactiveSheetValue(pick(row, 'status'))) parents.set(id, row);
-  });
-
-  const parentByStudent = new Map<string, JsonRecord>();
-  studentParentRows.forEach((link) => {
-    if (isInactiveSheetValue(pick(link, 'status'))) return;
-    const studentId = normalizedRecordId(pick(link, 'student_id', 'external_student_id'));
-    const parentId = normalizedRecordId(pick(link, 'parent_id'));
-    const parent = parents.get(parentId);
-    if (studentId && parent) parentByStudent.set(studentId, parent);
-  });
-
-  return studentRows.map((row) => {
-    const studentId = normalizedRecordId(pick(row, 'student_id', 'external_student_id', 'id'));
-    const assignment = assignments.get(studentId);
-    const counselorId = toStringValue(
-      pick(assignment ?? {}, 'counselor_id', 'external_counselor_id'),
-      toStringValue(pick(row, 'assigned_counselor_id')),
-    );
-    const parent = parentByStudent.get(studentId);
-    return {
-      ...row,
-      assigned_counselor_id: counselorId || null,
-      assigned_counselor_name: counselorNames.get(normalizedRecordId(counselorId))
-        ?? toStringValue(pick(row, 'assigned_counselor_name'))
-        ?? null,
-      assignment_status: assignment
-        ? toStringValue(pick(assignment, 'status', 'assignment_status'), 'ACTIVE')
-        : pick(row, 'assignment_status') ?? null,
-      assignment_ended_at: assignment
-        ? pick(assignment, 'ended_at', 'assignment_ended_at') ?? null
-        : pick(row, 'assignment_ended_at') ?? null,
-      parent_phone_number: toStringValue(
-        pick(row, 'parent_phone_number'),
-        toStringValue(pick(parent ?? {}, 'phone_number', 'phoneNumber')),
-      ) || null,
-      parent_email: toStringValue(
-        pick(row, 'parent_email'),
-        toStringValue(pick(parent ?? {}, 'email')),
-      ) || null,
-    };
-  });
 };
 
 export const loginAdmin = async (credentials: LoginCredentials): Promise<AuthSession> => {
@@ -1683,22 +1675,84 @@ export const deactivateCounselor = async (
 export const loadStudents = async (
   session: AuthSession,
   signal?: AbortSignal,
-): Promise<Student[]> => {
+): Promise<StudentLoadResult> => {
   if (!isRemoteApiConfigured || session.source === 'mock') {
-    return getMockStudents().filter((student) => student.status === 'ACTIVE');
+    return {
+      students: getMockStudents().filter((student) => student.status === 'ACTIVE'),
+      counselorDataAvailable: true,
+      counselorWarning: null,
+    };
   }
-  const [students, counselors, assignments] = await Promise.all([
-    loadSheetMirrorRows(session, 'students', signal),
+  const sources = await loadStudentSheetSources((table) =>
+    loadSheetMirrorRows(session, table, signal));
+  return {
+    students: enrichSheetStudentRows(
+      sources.students,
+      sources.counselors,
+      sources.assignments,
+      sources.parents,
+      sources.studentParents,
+    ).map(normalizeStudent).filter((student) => student.status !== 'INACTIVE'),
+    counselorDataAvailable: sources.counselorDataAvailable,
+    counselorWarning: sources.counselorWarning,
+  };
+};
+
+export const reloadStudentCounselorData = async (
+  session: AuthSession,
+  students: Student[],
+  signal?: AbortSignal,
+): Promise<StudentLoadResult> => {
+  if (!isRemoteApiConfigured || session.source === 'mock') {
+    return { students, counselorDataAvailable: true, counselorWarning: null };
+  }
+
+  const counselorSources = await Promise.allSettled([
     loadSheetMirrorRows(session, 'counselors', signal),
     loadSheetMirrorRows(session, 'counselor_assignments', signal),
   ]);
-  return enrichSheetStudentRows(
-    students,
-    counselors,
-    assignments,
-    [],
-    [],
-  ).map(normalizeStudent).filter((student) => student.status !== 'INACTIVE');
+  if (signal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
+
+  const counselors = counselorSources[0].status === 'fulfilled' ? counselorSources[0].value : [];
+  const assignments = counselorSources[1].status === 'fulfilled' ? counselorSources[1].value : [];
+  const counselorDataAvailable = counselorSources.every((result) => result.status === 'fulfilled');
+  if (!counselorDataAvailable) {
+    return {
+      students,
+      counselorDataAvailable: false,
+      counselorWarning: STUDENT_COUNSELOR_WARNING,
+    };
+  }
+
+  const studentRows = students.map((student) => ({
+    ...student,
+    student_id: student.externalId ?? student.id,
+  }));
+  return {
+    students: enrichSheetStudentCounselors(
+      studentRows,
+      counselors,
+      assignments,
+    ).map(normalizeStudent),
+    counselorDataAvailable: true,
+    counselorWarning: null,
+  };
+};
+
+export const loadDashboardSheetOperations = async (
+  session: AuthSession,
+  period: TimeRange,
+  source: SheetOperationSourceKey,
+  signal?: AbortSignal,
+): Promise<Partial<DashboardSheetOperationsState>> => {
+  if (!isRemoteApiConfigured || session.source === 'mock') {
+    return settleSheetOperationSources([source], async () => [], period);
+  }
+  return settleSheetOperationSources(
+    [source],
+    (table) => loadSheetMirrorRows(session, table, signal),
+    period,
+  );
 };
 
 export const createStudent = async (
@@ -1714,6 +1768,10 @@ export const createStudent = async (
       gender: input.gender ?? null,
       phoneNumber: input.phoneNumber,
       email: input.email ?? null,
+      parentId: null,
+      parentName: null,
+      parentRelationship: null,
+      parentIsPrimary: false,
       parentPhoneNumber: input.parentPhoneNumber ?? null,
       parentEmail: input.parentEmail ?? null,
       dateOfBirth: input.dateOfBirth ?? null,

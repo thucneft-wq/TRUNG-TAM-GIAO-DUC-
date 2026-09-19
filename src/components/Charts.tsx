@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
-import { CheckCircle2, XCircle, Calendar, Clock, AlertTriangle, Info } from 'lucide-react';
-import { DashboardMetrics } from '../types';
+import { CheckCircle2, XCircle, Info } from 'lucide-react';
+import type {
+  BookingsSheetSummary,
+  BookingStatus,
+} from '../domain/sheetOperationsPolicy';
+import { Button } from './ui/Primitives';
 
 interface CounselorPassChartProps {
   passed: number;
@@ -172,22 +176,95 @@ export const CounselorPassChart: React.FC<CounselorPassChartProps> = ({
 };
 
 interface BookingsChartProps {
-  metrics: DashboardMetrics;
+  summary: BookingsSheetSummary | null;
+  isLoading: boolean;
+  error: string | null;
+  onRetry: () => void;
 }
 
-export const BookingsChart: React.FC<BookingsChartProps> = ({ metrics }) => {
-  const { completed, pending, cancelled } = metrics.bookingsBreakdown;
-  const total = completed + pending + cancelled;
+const BOOKING_STATUS_PRESENTATION: Array<{
+  key: BookingStatus;
+  label: string;
+  barClass: string;
+  textClass: string;
+  dotClass: string;
+}> = [
+  {
+    key: 'completed',
+    label: 'Đã hoàn thành',
+    barClass: 'bg-academic-700',
+    textClass: 'text-academic-800',
+    dotClass: 'bg-academic-700',
+  },
+  {
+    key: 'pending',
+    label: 'Đang chờ',
+    barClass: 'bg-amber-400',
+    textClass: 'text-amber-800',
+    dotClass: 'bg-amber-500',
+  },
+  {
+    key: 'confirmed',
+    label: 'Đã xác nhận',
+    barClass: 'bg-pine-700',
+    textClass: 'text-pine-700',
+    dotClass: 'bg-pine-700',
+  },
+  {
+    key: 'scheduled',
+    label: 'Đã xếp lịch',
+    barClass: 'bg-sky-400',
+    textClass: 'text-sky-800',
+    dotClass: 'bg-sky-500',
+  },
+  {
+    key: 'cancelled',
+    label: 'Đã hủy',
+    barClass: 'bg-slate-300',
+    textClass: 'text-slate-700',
+    dotClass: 'bg-slate-400',
+  },
+];
 
-  const compPct = total > 0 ? Math.round((completed / total) * 100) : 0;
-  const pendPct = total > 0 ? Math.round((pending / total) * 100) : 0;
-  const cancPct = total > 0 ? Math.max(0, 100 - compPct - pendPct) : 0;
+export const BookingsChart: React.FC<BookingsChartProps> = ({
+  summary,
+  isLoading,
+  error,
+  onRetry,
+}) => {
+  if (!summary || isLoading || error) {
+    return (
+      <section
+        id="booking-status-chart-container"
+        className="flex min-h-80 flex-col border-y border-rule bg-white px-4 py-5 sm:px-5"
+      >
+        <h4 className="text-base font-semibold text-ink-950">Trạng thái lịch hẹn tham vấn</h4>
+        <p className="mt-1 text-xs text-slate-500">Dữ liệu được tổng hợp từ Google Sheet.</p>
+        <div className="mt-6 flex flex-1 items-center justify-center border-y border-dashed border-rule px-4 py-8 text-center">
+          {error ? (
+            <div role="alert" className="max-w-sm space-y-3">
+              <p className="text-sm font-medium text-brick-700">
+                Không thể tải dữ liệu lịch hẹn từ Sheet Mirror.
+              </p>
+              <Button size="sm" onClick={onRetry}>Thử lại</Button>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500" aria-live="polite">
+              Đang tải dữ liệu Sheet Mirror…
+            </p>
+          )}
+        </div>
+      </section>
+    );
+  }
 
-  // Max value in trends for scaling bar charts
-  const maxWeekly = Math.max(
-    ...metrics.monthlyTrends.map((t) => t.completed + t.pending + t.cancelled),
-    1
-  );
+  const total = summary.totalBookings;
+  const percentage = (status: BookingStatus) =>
+    total > 0 ? Math.round((summary.bookingsBreakdown[status] / total) * 100) : 0;
+  const completedPercentage = percentage('completed');
+  const timelineTotal = (point: BookingsSheetSummary['bookingTimeline'][number]) =>
+    BOOKING_STATUS_PRESENTATION.reduce((sum, status) => sum + point[status.key], 0);
+  const maxTimeline = Math.max(...summary.bookingTimeline.map(timelineTotal), 1);
 
   return (
     <section id="booking-status-chart-container" className="flex flex-col justify-between border-y border-rule bg-white px-4 py-5 sm:px-5">
@@ -206,55 +283,34 @@ export const BookingsChart: React.FC<BookingsChartProps> = ({ metrics }) => {
       <div className="space-y-1.5 my-2">
         <div className="flex justify-between text-2xs font-semibold text-slate-500">
           <span>Phân bố trạng thái phiên</span>
-          <span className="font-mono">Hiệu suất hoàn thành {compPct}%</span>
+          <span className="font-mono">Hiệu suất hoàn thành {completedPercentage}%</span>
         </div>
         <div className="flex h-3 w-full overflow-hidden bg-slate-100">
-          <div
-            style={{ width: `${compPct}%` }}
-            className="h-full bg-academic-700 transition-all duration-500"
-            title={`Đã hoàn thành: ${completed} (${compPct}%)`}
-          />
-          <div
-            style={{ width: `${pendPct}%` }}
-            className="bg-amber-400 h-full transition-all duration-500"
-            title={`Đang chờ: ${pending} (${pendPct}%)`}
-          />
-          <div
-            style={{ width: `${cancPct}%` }}
-            className="bg-slate-300 h-full transition-all duration-500"
-            title={`Đã hủy: ${cancelled} (${cancPct}%)`}
-          />
+          {BOOKING_STATUS_PRESENTATION.map((status) => (
+            <div
+              key={status.key}
+              style={{ width: `${percentage(status.key)}%` }}
+              className={`h-full ${status.barClass}`}
+              title={`${status.label}: ${summary.bookingsBreakdown[status.key]} (${percentage(status.key)}%)`}
+            />
+          ))}
         </div>
       </div>
 
       {/* Key breakdown statistics */}
-      <div className="my-3 grid grid-cols-3 divide-x divide-rule border-y border-rule">
-        <div className="px-2 py-3 text-center">
-          <div className="flex items-center justify-center gap-1 text-2xs font-bold text-academic-800">
-            <span className="h-2 w-2 rounded-full bg-academic-700"></span>
-            Đã hoàn thành
+      <div className="my-3 grid grid-cols-2 border-y border-rule sm:grid-cols-5 sm:divide-x sm:divide-rule">
+        {BOOKING_STATUS_PRESENTATION.map((status) => (
+          <div key={status.key} className="border-b border-rule px-2 py-3 text-center last:border-b-0 sm:border-b-0">
+            <div className={`flex items-center justify-center gap-1 text-2xs font-bold ${status.textClass}`}>
+              <span className={`size-2 rounded-full ${status.dotClass}`} aria-hidden="true" />
+              {status.label}
+            </div>
+            <div className="mt-0.5 text-lg font-bold text-ink-950">
+              {summary.bookingsBreakdown[status.key]}
+            </div>
+            <div className="font-mono text-2xs text-slate-500">{percentage(status.key)}%</div>
           </div>
-          <div className="mt-0.5 text-lg font-bold text-ink-950">{completed}</div>
-          <div className="font-mono text-2xs text-academic-700">{compPct}%</div>
-        </div>
-
-        <div className="px-2 py-3 text-center">
-          <div className="flex items-center justify-center gap-1 text-2xs font-bold text-amber-800">
-            <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-            Đang chờ
-          </div>
-          <div className="text-lg font-bold text-amber-950 mt-0.5">{pending}</div>
-          <div className="text-2xs text-amber-600 font-mono">{pendPct}%</div>
-        </div>
-
-        <div className="px-2 py-3 text-center">
-          <div className="flex items-center justify-center gap-1 text-2xs font-bold text-slate-700">
-            <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-            Đã hủy
-          </div>
-          <div className="text-lg font-bold text-slate-900 mt-0.5">{cancelled}</div>
-          <div className="text-2xs text-slate-500 font-mono">{cancPct}%</div>
-        </div>
+        ))}
       </div>
 
       {/* Timeline Breakdown / Trend */}
@@ -263,28 +319,23 @@ export const BookingsChart: React.FC<BookingsChartProps> = ({ metrics }) => {
           Diễn biến trong kỳ
         </div>
         <div className="space-y-1.5">
-          {metrics.monthlyTrends.map((t, idx) => {
-            const sum = t.completed + t.pending + t.cancelled;
-            const barWidth = (sum / maxWeekly) * 100;
-            const completedWidth = sum > 0 ? (t.completed / sum) * barWidth : 0;
-            const pendingWidth = sum > 0 ? (t.pending / sum) * barWidth : 0;
-            const cancelledWidth = sum > 0 ? (t.cancelled / sum) * barWidth : 0;
+          {summary.bookingTimeline.length === 0 && (
+            <p className="py-4 text-center text-xs text-slate-500">Không có lịch hẹn trong kỳ này.</p>
+          )}
+          {summary.bookingTimeline.map((point) => {
+            const sum = timelineTotal(point);
+            const barWidth = (sum / maxTimeline) * 100;
             return (
-              <div key={idx} className="flex items-center text-2xs gap-2">
-                <span className="w-24 text-slate-600 font-medium truncate">{t.month}</span>
+              <div key={point.label} className="flex items-center gap-2 text-2xs">
+                <span className="w-24 truncate font-medium text-slate-600">{point.label}</span>
                 <div className="flex h-2.5 flex-1 overflow-hidden bg-slate-100">
-                  <div
-                    style={{ width: `${completedWidth}%` }}
-                    className="h-full bg-academic-700"
-                  />
-                  <div
-                    style={{ width: `${pendingWidth}%` }}
-                    className="bg-amber-400 h-full"
-                  />
-                  <div
-                    style={{ width: `${cancelledWidth}%` }}
-                    className="bg-slate-300 h-full"
-                  />
+                  {BOOKING_STATUS_PRESENTATION.map((status) => (
+                    <div
+                      key={status.key}
+                      style={{ width: `${sum > 0 ? (point[status.key] / sum) * barWidth : 0}%` }}
+                      className={`h-full ${status.barClass}`}
+                    />
+                  ))}
                 </div>
                 <span className="w-8 text-right font-mono font-bold text-slate-700">{sum}</span>
               </div>

@@ -9,6 +9,17 @@ import {
 } from '../src/domain/kpiPolicy.ts';
 import { INITIAL_COUNSELORS } from '../src/mockData.ts';
 import type { KPIItem, OfficialKpiId, TimeRange } from '../src/types.ts';
+import {
+  countActiveStudentsByLevel,
+  enrichSheetStudentRows,
+  isSheetTrue,
+} from '../src/domain/sheetStudentPolicy.ts';
+import {
+  calculateSheetOperationsSummary,
+  settleSheetOperationSources,
+} from '../src/domain/sheetOperationsPolicy.ts';
+import { loadStudentSheetSources } from '../src/domain/studentLoadPolicy.ts';
+import { SharedRequestPool } from '../src/services/sharedRequestPool.ts';
 
 const definitionById = new Map(
   OFFICIAL_KPI_DEFINITIONS.map((definition) => [definition.id, definition]),
@@ -185,4 +196,354 @@ assert.equal(getCounselorEvaluation(INITIAL_COUNSELORS[0], 'this-month').overall
 assert.equal(getCounselorEvaluation(INITIAL_COUNSELORS[1], 'this-month').overallStatus, 'Not Pass');
 assert.equal(getCounselorEvaluation(INITIAL_COUNSELORS[1], 'last-month').overallStatus, 'Pass');
 
-console.log('Four performance KPIs plus caseload safety policy verification passed.');
+assert.equal(isSheetTrue(true), true);
+assert.equal(isSheetTrue('TRUE'), true);
+assert.equal(isSheetTrue(1), true);
+assert.equal(isSheetTrue('yes'), true);
+assert.equal(isSheetTrue('false'), false);
+
+const sheetStudents = [
+  { student_id: 'HS-01', first_name: 'Học', last_name: 'Sinh', status: 'ACTIVE', school_level: 'THCS' },
+  { student_id: 'HS-02', first_name: 'Đã', last_name: 'Ẩn', status: 'INACTIVE', school_level: 'THPT' },
+  { student_id: 'HS-03', first_name: 'Liên', last_name: 'Kết', status: 'INACTIVE', school_level: 'THCS' },
+  { student_id: 'HS-04', first_name: 'Thiếu', last_name: 'Liên hệ', status: 'INACTIVE', school_level: 'THCS' },
+];
+const sheetParents = [
+  {
+    parent_id: 'PH-01',
+    first_name: 'Kim',
+    last_name: 'Ánh',
+    phone_number: '0901000001',
+    email: 'kim.anh@example.com',
+    status: 'ACTIVE',
+  },
+  {
+    parent_id: 'PH-02',
+    first_name: 'Phụ huynh',
+    last_name: 'Phụ',
+    phone_number: '0902000002',
+    email: 'secondary@example.com',
+    status: 'ACTIVE',
+  },
+  { parent_id: 'PH-03', first_name: 'Không', last_name: 'Liên hệ', status: 'ACTIVE' },
+];
+const sheetStudentParents = [
+  {
+    student_parent_id: 'HSPH-02',
+    student_id: 'HS-01',
+    parent_id: 'PH-02',
+    relationship: 'Cha',
+    is_primary: false,
+    status: 'ACTIVE',
+    created_at: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    student_parent_id: 'HSPH-01',
+    student_id: 'HS-01',
+    parent_id: 'PH-01',
+    relationship: 'Mẹ',
+    is_primary: 'TRUE',
+    status: 'ACTIVE',
+    created_at: '2026-02-01T00:00:00.000Z',
+  },
+  {
+    student_parent_id: 'HSPH-03',
+    student_id: 'HS-03',
+    parent_id: 'PH-01',
+    relationship: 'Mẹ',
+    is_primary: 1,
+    status: 'ACTIVE',
+  },
+  {
+    student_parent_id: 'HSPH-04',
+    student_id: 'HS-04',
+    parent_id: 'PH-03',
+    relationship: 'Người giám hộ',
+    is_primary: 'yes',
+    status: 'ACTIVE',
+  },
+];
+
+const enrichedStudents = enrichSheetStudentRows(
+  sheetStudents,
+  [],
+  [],
+  sheetParents,
+  [...sheetStudentParents].reverse(),
+);
+const hs01 = enrichedStudents.find((student) => student.student_id === 'HS-01')!;
+assert.equal(hs01.parent_id, 'PH-01');
+assert.equal(hs01.parent_name, 'Kim Ánh');
+assert.equal(hs01.parent_relationship, 'Mẹ');
+assert.equal(hs01.parent_is_primary, true);
+assert.equal(hs01.parent_phone_number, '0901000001');
+assert.equal(hs01.parent_email, 'kim.anh@example.com');
+assert.equal(
+  enrichedStudents.find((student) => student.student_id === 'HS-03')?.parent_id,
+  'PH-01',
+  'One parent can be linked to multiple students',
+);
+assert.equal(
+  enrichedStudents.find((student) => student.student_id === 'HS-04')?.parent_email,
+  null,
+  'A linked parent may omit email and phone without failing enrichment',
+);
+
+const nonPrimaryLinks = [
+  {
+    student_parent_id: 'HSPH-11',
+    student_id: 'HS-05',
+    parent_id: 'PH-01',
+    relationship: 'Mẹ',
+    is_primary: false,
+    status: 'ACTIVE',
+    created_at: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    student_parent_id: 'HSPH-12',
+    student_id: 'HS-05',
+    parent_id: 'PH-02',
+    relationship: 'Cha',
+    is_primary: false,
+    status: 'ACTIVE',
+    created_at: '2026-02-01T00:00:00.000Z',
+  },
+];
+const selectFallbackParent = (links: typeof nonPrimaryLinks) => enrichSheetStudentRows(
+  [{ student_id: 'HS-05', first_name: 'Không', last_name: 'Primary', status: 'ACTIVE' }],
+  [],
+  [],
+  sheetParents,
+  links,
+)[0].parent_id;
+assert.equal(selectFallbackParent(nonPrimaryLinks), 'PH-01');
+assert.equal(
+  selectFallbackParent([...nonPrimaryLinks].reverse()),
+  'PH-01',
+  'Fallback parent selection must not depend on Sheet row order',
+);
+
+assert.deepEqual(
+  countActiveStudentsByLevel([
+    { status: 'ACTIVE', schoolLevel: 'THCS' },
+    { status: 'INACTIVE', schoolLevel: 'THPT' },
+    { status: 'ACTIVE', schoolLevel: null },
+  ]),
+  { total: 1, thcs: 1, thpt: 0 },
+  'Active student KPI must equal active THCS plus active THPT and exclude inactive records',
+);
+
+const sheetBookings = [
+  { booking_id: 'BKG-01', start_time: '2026-09-01T02:00:00Z', status: 'completed' },
+  {
+    booking_id: 'BKG-02',
+    start_time: '2026-09-02T02:00:00Z',
+    status: 'scheduled',
+    updated_at: '2026-09-01T00:00:00Z',
+  },
+  {
+    booking_id: 'BKG-02',
+    start_time: '2026-09-02T02:00:00Z',
+    status: 'pending',
+    updated_at: '2026-09-02T00:00:00Z',
+  },
+  { booking_id: 'BKG-03', start_time: '2026-09-03T02:00:00Z', status: 'CONFIRMED' },
+  { booking_id: 'BKG-04', start_time: '2026-09-04 09:00:00', status: 'scheduled' },
+  {
+    booking_id: 'BKG-05',
+    start_time: '2026-08-31T18:00:00Z',
+    status: 'cancelled',
+  },
+  { booking_id: 'BKG-06', start_time: '2026-08-15T02:00:00Z', status: 'completed' },
+  { booking_id: 'BKG-07', start_time: '2026-09-05T02:00:00Z', status: 'rescheduled' },
+];
+const sheetTests = [
+  { test_id: 'TST-01', status: 'ACTIVE', updated_at: '2026-09-02T00:00:00Z' },
+  { test_id: 'TST-02', status: 'INACTIVE' },
+  { test_id: 'TST-01', status: 'inactive', updated_at: '2026-09-01T00:00:00Z' },
+];
+const sheetTestAttempts = [
+  {
+    test_attempt_id: 'LANTHI-01',
+    submitted_at: '2026-09-06T02:00:00Z',
+    assigned_at: '2026-08-01T02:00:00Z',
+  },
+  { test_attempt_id: 'LANTHI-02', assigned_at: '2026-09-07T02:00:00Z' },
+  { test_attempt_id: 'LANTHI-03', created_at: '2026-09-08T02:00:00Z' },
+  { test_attempt_id: 'LANTHI-04', created_at: '2026-08-08T02:00:00Z' },
+  {
+    test_attempt_id: 'LANTHI-05',
+    submitted_at: '2026-10-01T02:00:00Z',
+    assigned_at: '2026-09-09T02:00:00Z',
+  },
+];
+
+const sheetOperations = calculateSheetOperationsSummary(
+  sheetBookings,
+  sheetTests,
+  sheetTestAttempts,
+  'this-month',
+  new Date('2026-09-19T05:00:00Z'),
+);
+assert.deepEqual(sheetOperations.rawRowCounts, { bookings: 8, tests: 3, testAttempts: 5 });
+assert.equal(sheetOperations.totalBookings, 5, 'Unique bookings must be filtered by start_time');
+assert.deepEqual(sheetOperations.countedIds.bookings, [
+  'BKG-01',
+  'BKG-02',
+  'BKG-03',
+  'BKG-04',
+  'BKG-05',
+]);
+assert.deepEqual(sheetOperations.bookingsBreakdown, {
+  completed: 1,
+  pending: 1,
+  confirmed: 1,
+  scheduled: 1,
+  cancelled: 1,
+});
+assert.equal(
+  sheetOperations.bookingTimeline.reduce(
+    (sum, point) => sum
+      + point.completed
+      + point.pending
+      + point.confirmed
+      + point.scheduled
+      + point.cancelled,
+    0,
+  ),
+  sheetOperations.totalBookings,
+  'Booking chart and KPI must use the same filtered booking set',
+);
+assert.equal(sheetOperations.bookingGrowthPercent, 400);
+assert.equal(sheetOperations.activeTests, 1);
+assert.deepEqual(sheetOperations.countedIds.activeTests, ['TST-01']);
+assert.equal(sheetOperations.totalTestAttempts, 3);
+assert.deepEqual(sheetOperations.countedIds.testAttempts, [
+  'LANTHI-01',
+  'LANTHI-02',
+  'LANTHI-03',
+]);
+
+const isolatedOperationCalls: string[] = [];
+const isolatedOperations = await settleSheetOperationSources(
+  ['bookings', 'tests', 'test_attempts'],
+  async (source) => {
+    isolatedOperationCalls.push(source);
+    if (source === 'bookings') throw new Error('Bookings timeout');
+    if (source === 'tests') return [{ test_id: 'TST-01', status: 'ACTIVE' }];
+    return [];
+  },
+  'this-month',
+  new Date('2026-09-19T05:00:00Z'),
+);
+assert.deepEqual(isolatedOperationCalls.sort(), ['bookings', 'test_attempts', 'tests']);
+assert.equal(isolatedOperations.bookings?.status, 'error');
+assert.equal(isolatedOperations.bookings?.data, null);
+assert.equal(isolatedOperations.tests?.status, 'available');
+assert.equal(isolatedOperations.tests?.data?.activeTests, 1);
+assert.equal(isolatedOperations.testAttempts?.status, 'available');
+assert.equal(isolatedOperations.testAttempts?.data?.totalTestAttempts, 0);
+
+const failedTestsOnly = await settleSheetOperationSources(
+  ['tests', 'test_attempts'],
+  async (source) => {
+    if (source === 'tests') throw new Error('Tests timeout');
+    return [];
+  },
+  'this-month',
+  new Date('2026-09-19T05:00:00Z'),
+);
+assert.equal(failedTestsOnly.tests?.status, 'error');
+assert.equal(failedTestsOnly.tests?.data, null);
+assert.equal(failedTestsOnly.testAttempts?.status, 'available');
+assert.equal(failedTestsOnly.testAttempts?.data?.totalTestAttempts, 0);
+
+const emptyBookings = await settleSheetOperationSources(
+  ['bookings'],
+  async () => [],
+  'this-month',
+  new Date('2026-09-19T05:00:00Z'),
+);
+assert.equal(emptyBookings.bookings?.status, 'available');
+assert.equal(emptyBookings.bookings?.data?.totalBookings, 0);
+
+const retryCalls: string[] = [];
+const retriedBookings = await settleSheetOperationSources(
+  ['bookings'],
+  async (source) => {
+    retryCalls.push(source);
+    return [];
+  },
+  'this-month',
+  new Date('2026-09-19T05:00:00Z'),
+);
+assert.deepEqual(retryCalls, ['bookings'], 'Booking retry must not reload tests or test_attempts');
+assert.equal(retriedBookings.bookings?.data?.totalBookings, 0);
+
+const resilientSources = await loadStudentSheetSources(async (table) => {
+  if (table === 'counselors') throw new Error('Counselor timeout');
+  if (table === 'students') return sheetStudents;
+  if (table === 'parents') return sheetParents;
+  if (table === 'student_parents') return sheetStudentParents;
+  return [];
+});
+assert.equal(resilientSources.counselorDataAvailable, false);
+assert.match(resilientSources.counselorWarning ?? '', /tư vấn viên/i);
+const resilientStudents = enrichSheetStudentRows(
+  resilientSources.students,
+  resilientSources.counselors,
+  resilientSources.assignments,
+  resilientSources.parents,
+  resilientSources.studentParents,
+);
+const resilientHs01 = resilientStudents.find((student) => student.student_id === 'HS-01')!;
+assert.equal(resilientHs01.parent_id, 'PH-01');
+assert.equal(resilientHs01.parent_name, 'Kim Ánh');
+
+await assert.rejects(
+  () => loadStudentSheetSources(async (table) => {
+    if (table === 'students') throw new Error('Students unavailable');
+    return [];
+  }),
+  /Students unavailable/,
+  'A required Sheet table failure must reject the student load',
+);
+
+const sharedPool = new SharedRequestPool<string, string[]>();
+let mirrorRequestCount = 0;
+let resolveSharedRequest!: (value: string[]) => void;
+const sharedFactory = () => {
+  mirrorRequestCount += 1;
+  return new Promise<string[]>((resolve) => {
+    resolveSharedRequest = resolve;
+  });
+};
+const dashboardCounselors = sharedPool.run('counselors', sharedFactory);
+const studentCounselors = sharedPool.run('counselors', sharedFactory);
+await Promise.resolve();
+assert.equal(mirrorRequestCount, 1, 'Concurrent consumers must share one mirror request');
+resolveSharedRequest(['TVV-01']);
+assert.deepEqual(await dashboardCounselors, ['TVV-01']);
+assert.deepEqual(await studentCounselors, ['TVV-01']);
+assert.equal(sharedPool.has('counselors'), false, 'Finished requests must leave the in-flight pool');
+
+const retryPool = new SharedRequestPool<string, string>();
+let abortedRequestCount = 0;
+const staleRequest = retryPool.run('counselors', (signal) => new Promise<string>((_resolve, reject) => {
+  if (signal.aborted) {
+    abortedRequestCount += 1;
+    reject(new DOMException('Retry', 'AbortError'));
+    return;
+  }
+  signal.addEventListener('abort', () => {
+    abortedRequestCount += 1;
+    reject(new DOMException('Retry', 'AbortError'));
+  }, { once: true });
+}));
+retryPool.abort('counselors');
+await assert.rejects(staleRequest, (error: unknown) =>
+  error instanceof DOMException && error.name === 'AbortError');
+assert.equal(abortedRequestCount, 1, 'Retry must abort the stale in-flight request');
+assert.equal(await retryPool.run('counselors', async () => 'fresh'), 'fresh');
+
+console.log('KPI, resilient Sheet student/parent, shared request, and operations policy verification passed.');

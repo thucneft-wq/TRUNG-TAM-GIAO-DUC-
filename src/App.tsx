@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { LoaderCircle, RefreshCw } from 'lucide-react';
 import {
@@ -35,6 +35,11 @@ import {
   googleStudentThptEntryUrl,
   googleCounselorEntryUrl,
   analyticsSyncIntervalMs,
+  clearDashboardOperationsSheetMirrorCache,
+  clearStudentCounselorSheetMirrorCache,
+  clearStudentSheetMirrorCache,
+  loadDashboardSheetOperations,
+  reloadStudentCounselorData,
   studentSyncIntervalMs,
   restoreSession,
   saveSession,
@@ -42,6 +47,12 @@ import {
   updateCounselor,
   updateStudent,
 } from './services/api';
+import { countActiveStudentsByLevel } from './domain/sheetStudentPolicy';
+import {
+  createLoadingSheetOperationsState,
+  type DashboardSheetOperationsState,
+  type SheetOperationSourceKey,
+} from './domain/sheetOperationsPolicy';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { LoginScreen } from './components/LoginScreen';
@@ -122,6 +133,16 @@ export default function App() {
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(Boolean(session));
   const [isStudentsLoading, setIsStudentsLoading] = useState(Boolean(session));
   const [studentsError, setStudentsError] = useState<string | null>(null);
+  const [studentCounselorWarning, setStudentCounselorWarning] = useState<string | null>(null);
+  const [isStudentCounselorRetrying, setIsStudentCounselorRetrying] = useState(false);
+  const studentCounselorRetryController = useRef<AbortController | null>(null);
+  const [studentsLastUpdated, setStudentsLastUpdated] = useState<string | null>(null);
+  const [sheetOperations, setSheetOperations] = useState<DashboardSheetOperationsState>(
+    createLoadingSheetOperationsState,
+  );
+  const sheetOperationRetryControllers = useRef<
+    Partial<Record<SheetOperationSourceKey, AbortController>>
+  >({});
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [initialCounselorFilter, setInitialCounselorFilter] =
@@ -137,13 +158,22 @@ export default function App() {
     [timeRange, counselors],
   );
 
+  const activeStudentSummary = useMemo(
+    () => countActiveStudentsByLevel(students),
+    [students],
+  );
+
   // API totals and trend data are used when available. Counselor pass/fail values
   // always come from the frontend's strict five-KPI policy.
   const dashboardMetrics = useMemo<DashboardMetrics>(() => {
-    if (!remoteDashboard) return derivedDashboard;
+    if (!remoteDashboard) {
+      return { ...derivedDashboard, totalStudents: activeStudentSummary.total };
+    }
 
     return {
       ...remoteDashboard,
+      // Student totals are authoritative only from the Sheet Mirror student load.
+      totalStudents: activeStudentSummary.total,
       activeCounselors: derivedDashboard.activeCounselors,
       passedCounselors: derivedDashboard.passedCounselors,
       notPassedCounselors: derivedDashboard.notPassedCounselors,
@@ -153,7 +183,7 @@ export default function App() {
           ? remoteDashboard.monthlyTrends
           : derivedDashboard.monthlyTrends,
     };
-  }, [derivedDashboard, remoteDashboard]);
+  }, [activeStudentSummary.total, derivedDashboard, remoteDashboard]);
 
   useEffect(() => {
     if (!session || session.user.roleCode !== 'admin') {
@@ -235,9 +265,16 @@ export default function App() {
     const controller = new AbortController();
     setIsStudentsLoading(true);
     setStudentsError(null);
+    setStudentCounselorWarning(null);
+    setStudents([]);
+    setStudentsLastUpdated(null);
     loadStudents(session, controller.signal)
       .then((result) => {
-        if (isCurrentRequest) setStudents(result);
+        if (isCurrentRequest) {
+          setStudents(result.students);
+          setStudentCounselorWarning(result.counselorWarning);
+          setStudentsLastUpdated(new Date().toISOString());
+        }
       })
       .catch((error) => {
         if (isCurrentRequest) {
@@ -253,6 +290,42 @@ export default function App() {
     };
   }, [session, refreshKey]);
 
+  useEffect(() => () => {
+    studentCounselorRetryController.current?.abort();
+  }, []);
+
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+    let isCurrentRequest = true;
+    const controller = new AbortController();
+    (['bookings', 'tests', 'test_attempts'] as SheetOperationSourceKey[]).forEach((source) => {
+      sheetOperationRetryControllers.current[source]?.abort();
+      delete sheetOperationRetryControllers.current[source];
+    });
+    setSheetOperations(createLoadingSheetOperationsState());
+
+    (['bookings', 'tests', 'test_attempts'] as SheetOperationSourceKey[]).forEach((source) => {
+      loadDashboardSheetOperations(session, timeRange, source, controller.signal)
+        .then((result) => {
+          if (!isCurrentRequest) return;
+          setSheetOperations((current) => ({ ...current, ...result }));
+        });
+    });
+
+    return () => {
+      isCurrentRequest = false;
+      controller.abort();
+    };
+  }, [session, timeRange]);
+
+  useEffect(() => () => {
+    (['bookings', 'tests', 'test_attempts'] as SheetOperationSourceKey[]).forEach((source) => {
+      sheetOperationRetryControllers.current[source]?.abort();
+    });
+  }, []);
+
   useEffect(() => {
     if (!session) return;
     const activeControllers = new Set<AbortController>();
@@ -264,7 +337,11 @@ export default function App() {
         pendingRequests -= 1;
         if (pendingRequests === 0) activeControllers.delete(controller);
       };
-      loadStudents(session, controller.signal).then(setStudents).catch(() => {
+      loadStudents(session, controller.signal).then((result) => {
+        setStudents(result.students);
+        setStudentCounselorWarning(result.counselorWarning);
+        setStudentsLastUpdated(new Date().toISOString());
+      }).catch(() => {
         // Keep the last successful list; the next interval retries automatically.
       }).finally(markRequestFinished);
       if (session.user.roleCode === 'admin') {
@@ -399,6 +476,8 @@ export default function App() {
     setRemoteDashboard(null);
     setDataError(null);
     setStudentsError(null);
+    setStudentsLastUpdated(null);
+    setSheetOperations(createLoadingSheetOperationsState());
     setDataWarning(null);
     setAnalyticsError(null);
     setAuditLogs([]);
@@ -452,6 +531,67 @@ export default function App() {
     if (!session) return;
     await deactivateStudent(session, id);
     setStudents((current) => current.filter((student) => student.id !== id));
+  };
+
+  const handleStudentsRefresh = () => {
+    clearStudentSheetMirrorCache();
+    clearStudentCounselorSheetMirrorCache();
+    studentCounselorRetryController.current?.abort();
+    setStudents([]);
+    setStudentsError(null);
+    setStudentCounselorWarning(null);
+    setStudentsLastUpdated(null);
+    setRefreshKey((key) => key + 1);
+  };
+
+  const handleStudentCounselorRetry = async () => {
+    if (!session) return;
+    studentCounselorRetryController.current?.abort();
+    clearStudentCounselorSheetMirrorCache();
+    const controller = new AbortController();
+    studentCounselorRetryController.current = controller;
+    setIsStudentCounselorRetrying(true);
+    try {
+      const result = await reloadStudentCounselorData(session, students, controller.signal);
+      if (studentCounselorRetryController.current !== controller) return;
+      setStudents(result.students);
+      setStudentCounselorWarning(result.counselorWarning);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setStudentCounselorWarning(
+        error instanceof Error
+          ? error.message
+          : 'Thông tin phân công tư vấn viên tạm thời chưa tải được.',
+      );
+    } finally {
+      if (studentCounselorRetryController.current === controller) {
+        studentCounselorRetryController.current = null;
+        setIsStudentCounselorRetrying(false);
+      }
+    }
+  };
+
+  const handleSheetOperationRetry = async (source: SheetOperationSourceKey) => {
+    if (!session) return;
+    sheetOperationRetryControllers.current[source]?.abort();
+    clearDashboardOperationsSheetMirrorCache([source]);
+    const controller = new AbortController();
+    sheetOperationRetryControllers.current[source] = controller;
+    const stateKey = source === 'test_attempts' ? 'testAttempts' : source;
+    setSheetOperations((current) => ({
+      ...current,
+      [stateKey]: { status: 'loading', data: null, error: null, lastUpdated: null },
+    }));
+
+    const result = await loadDashboardSheetOperations(
+      session,
+      timeRange,
+      source,
+      controller.signal,
+    );
+    if (sheetOperationRetryControllers.current[source] !== controller) return;
+    setSheetOperations((current) => ({ ...current, ...result }));
+    delete sheetOperationRetryControllers.current[source];
   };
 
   const handleNavigate = (screen: ScreenType) => {
@@ -567,7 +707,12 @@ export default function App() {
               title="Không thể tải dữ liệu quản trị."
               className="mb-5"
               action={(
-                <Button size="sm" onClick={() => setRefreshKey((key) => key + 1)}>
+                <Button
+                  size="sm"
+                  onClick={currentScreen === 'students'
+                    ? handleStudentsRefresh
+                    : () => setRefreshKey((key) => key + 1)}
+                >
                   <RefreshCw className="size-3.5" /> Thử lại
                 </Button>
               )}
@@ -622,8 +767,11 @@ export default function App() {
                       thcs: googleStudentThcsEntryUrl,
                       thpt: googleStudentThptEntryUrl,
                     }}
-                    onRefresh={() => setRefreshKey((key) => key + 1)}
+                    onRefresh={handleStudentsRefresh}
                     isRefreshing={isStudentsLoading}
+                    counselorWarning={studentCounselorWarning}
+                    onRetryCounselors={() => void handleStudentCounselorRetry()}
+                    isCounselorRetrying={isStudentCounselorRetrying}
                   />
                 </motion.div>
               )}
@@ -639,6 +787,13 @@ export default function App() {
                   <DashboardScreen
                     metrics={dashboardMetrics}
                     counselors={counselors}
+                    activeStudentSummary={activeStudentSummary}
+                    isStudentsLoading={isStudentsLoading}
+                    studentsError={studentsError}
+                    studentsLastUpdated={studentsLastUpdated}
+                    onRetryStudents={handleStudentsRefresh}
+                    sheetOperations={sheetOperations}
+                    onRetrySheetOperation={(source) => void handleSheetOperationRetry(source)}
                     timeRange={timeRange}
                     onTimeRangeChange={setTimeRange}
                     onNavigate={handleNavigate}

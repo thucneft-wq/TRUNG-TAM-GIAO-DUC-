@@ -28,6 +28,9 @@ interface StudentManagementScreenProps {
   };
   onRefresh: () => void;
   isRefreshing: boolean;
+  counselorWarning: string | null;
+  onRetryCounselors: () => void;
+  isCounselorRetrying: boolean;
 }
 
 const getStudentStatusPresentation = (student: Student) => ({
@@ -43,6 +46,34 @@ const getStudentStatusPresentation = (student: Student) => ({
       : 'Ngừng theo dõi',
 });
 
+const ParentContact = ({ student }: { student: Student }) => {
+  if (!student.parentId) {
+    return <p className="text-slate-500">Chưa có thông tin phụ huynh</p>;
+  }
+
+  const identity = [student.parentName || student.parentId, student.parentRelationship]
+    .filter(Boolean)
+    .join(' · ');
+
+  return (
+    <div className="min-w-0 space-y-1">
+      {identity && <p className="break-words font-medium text-slate-800">{identity}</p>}
+      {student.parentPhoneNumber && (
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Phone className="size-3.5 shrink-0 text-slate-400" />
+          <span className="min-w-0 break-all tabular-nums">{student.parentPhoneNumber}</span>
+        </div>
+      )}
+      {student.parentEmail && (
+        <div className="flex min-w-0 items-center gap-1.5 text-slate-500">
+          <Mail className="size-3.5 shrink-0" />
+          <span className="min-w-0 break-all">{student.parentEmail}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = ({
   students,
   isAdmin,
@@ -54,6 +85,9 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
   googleEntryUrls,
   onRefresh,
   isRefreshing,
+  counselorWarning,
+  onRetryCounselors,
+  isCounselorRetrying,
 }) => {
   const [query, setQuery] = useState('');
   const [levelFilter, setLevelFilter] = useState<'THCS' | 'THPT' | 'UNKNOWN'>('THCS');
@@ -87,6 +121,8 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
         student.name,
         student.email ?? '',
         student.phoneNumber,
+        student.parentName ?? '',
+        student.parentRelationship ?? '',
         student.parentEmail ?? '',
         student.parentPhoneNumber ?? '',
       ]
@@ -208,6 +244,21 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
 
       {error && <Alert tone="error" action={<Button size="sm" onClick={handleRetry}>Thử lại</Button>}>{error}</Alert>}
 
+      {counselorWarning && (
+        <Alert
+          tone="warning"
+          title="Dữ liệu tư vấn viên chưa sẵn sàng"
+          action={(
+            <Button size="sm" onClick={onRetryCounselors} disabled={isCounselorRetrying}>
+              <RefreshCw className="size-3.5" />
+              {isCounselorRetrying ? 'Đang thử lại' : 'Thử lại tư vấn viên'}
+            </Button>
+          )}
+        >
+          {counselorWarning}
+        </Alert>
+      )}
+
       <section className="min-w-0 overflow-hidden border-y border-rule bg-white">
         <div className="flex flex-wrap gap-x-4 border-b border-rule px-4" role="tablist" aria-label="Lọc học sinh theo cấp học">
           {(['THCS', 'THPT'] as const).map((level) => (
@@ -304,8 +355,7 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                     <div className="min-w-0">
                       <dt className="text-xs font-medium text-slate-500">Liên hệ phụ huynh</dt>
                       <dd className="mt-1 space-y-1 text-xs">
-                        <div className="flex items-center gap-1.5"><Phone className="size-3.5 shrink-0 text-slate-400" /><span className="min-w-0 break-all tabular-nums">{student.parentPhoneNumber ?? 'Chưa có SĐT'}</span></div>
-                        <div className="flex items-center gap-1.5 text-slate-500"><Mail className="size-3.5 shrink-0" /><span className="min-w-0 break-all">{student.parentEmail ?? 'Chưa có email'}</span></div>
+                        <ParentContact student={student} />
                       </dd>
                     </div>
                     <div>
@@ -314,8 +364,12 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                     </div>
                     <div className="min-w-0">
                       <dt className="text-xs font-medium text-slate-500">Tư vấn viên</dt>
-                      <dd className="mt-1 line-clamp-2 font-medium text-slate-800">{student.assignedCounselorName ?? 'Chưa phân công'}</dd>
-                      {student.assignmentStatus && student.assignmentStatus !== 'ACTIVE' && (
+                      <dd className="mt-1 line-clamp-2 font-medium text-slate-800">
+                        {counselorWarning
+                          ? 'Tạm thời chưa tải được'
+                          : student.assignedCounselorName ?? 'Chưa phân công'}
+                      </dd>
+                      {!counselorWarning && student.assignmentStatus && student.assignmentStatus !== 'ACTIVE' && (
                         <p className="mt-1 text-xs text-slate-400">Phân công đã kết thúc</p>
                       )}
                     </div>
@@ -356,14 +410,7 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                       <div className="mt-1 flex items-center gap-1.5 text-slate-500"><Mail className="size-3.5 shrink-0" /><span className="truncate">{student.email ?? 'Chưa có email'}</span></div>
                     </td>
                     <td className="px-3 py-3 align-top text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <Phone className="size-3.5 shrink-0 text-slate-400" />
-                        <span className="truncate tabular-nums">{student.parentPhoneNumber ?? 'Chưa có SĐT'}</span>
-                      </div>
-                      <div className="mt-1 flex items-center gap-1.5 text-slate-500">
-                        <Mail className="size-3.5 shrink-0" />
-                        <span className="truncate">{student.parentEmail ?? 'Chưa có email'}</span>
-                      </div>
+                      <ParentContact student={student} />
                     </td>
                     <td className="px-3 py-3 align-top text-xs tabular-nums">{student.dateOfBirth ?? '—'}</td>
                     <td className="px-3 py-3 align-top">
@@ -372,8 +419,12 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                       </span>
                     </td>
                     <td className="px-3 py-3 align-top text-xs">
-                      <div className="line-clamp-2">{student.assignedCounselorName ?? 'Chưa phân công'}</div>
-                      {student.assignmentStatus && student.assignmentStatus !== 'ACTIVE' && (
+                      <div className="line-clamp-2">
+                        {counselorWarning
+                          ? 'Tạm thời chưa tải được'
+                          : student.assignedCounselorName ?? 'Chưa phân công'}
+                      </div>
+                      {!counselorWarning && student.assignmentStatus && student.assignmentStatus !== 'ACTIVE' && (
                         <div className="mt-1 text-xs text-slate-400">Phân công đã kết thúc</div>
                       )}
                     </td>
