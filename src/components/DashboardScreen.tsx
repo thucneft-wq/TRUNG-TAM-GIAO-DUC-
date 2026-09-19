@@ -145,7 +145,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 border-y border-rule bg-white sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-1 items-stretch border-y border-rule bg-white sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {/* 1. Active students from Sheet Mirror */}
           <KpiCard
             id="kpi-card-total-students"
@@ -157,7 +157,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             icon={Users}
             variant="blue"
             footer={(
-              <div className="mt-1 space-y-1.5">
+              <div className="space-y-1.5">
                 <p className="text-slate-600">Gồm chờ chọn lịch và đang tư vấn</p>
                 {studentsError ? (
                   <div role="alert" className="space-y-2 text-brick-700">
@@ -217,7 +217,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 }
               : undefined}
             footer={(
-              <div className="mt-1 space-y-2 text-slate-500">
+              <div className="space-y-2 text-slate-500">
                 {sheetOperations.bookings.status === 'error' ? (
                   <div role="alert" className="space-y-2 text-brick-700">
                     <p>Không thể tải dữ liệu lịch hẹn.</p>
@@ -250,7 +250,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             icon={FlaskConical}
             variant="default"
             footer={(
-              <div className="mt-1 space-y-2 text-slate-500">
+              <div className="space-y-2 text-slate-500">
                 {sheetOperations.tests.status === 'error' ? (
                   <div role="alert" className="space-y-2 text-brick-700">
                     <p>Không thể tải danh sách bài test.</p>

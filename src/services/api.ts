@@ -4,13 +4,15 @@ import {
 } from '../domain/kpiPolicy';
 import {
   enrichSheetStudentCounselors,
-  enrichSheetStudentRows,
+  enrichSheetStudentParents,
   isInactiveSheetValue,
   isSheetTrue,
   normalizedRecordId,
 } from '../domain/sheetStudentPolicy';
 import {
-  loadStudentSheetSources,
+  loadStudentCounselorSources,
+  loadStudentParentSources,
+  loadStudentRows,
   STUDENT_COUNSELOR_WARNING,
 } from '../domain/studentLoadPolicy';
 import { SharedRequestPool } from './sharedRequestPool';
@@ -64,6 +66,14 @@ export interface AnalyticsDataResult {
 }
 
 export interface StudentLoadResult {
+  students: Student[];
+}
+
+export interface StudentParentLoadResult {
+  students: Student[];
+}
+
+export interface StudentCounselorLoadResult {
   students: Student[];
   counselorDataAvailable: boolean;
   counselorWarning: string | null;
@@ -525,6 +535,9 @@ const normalizeEvidence = (value: unknown): KpiEvidence | undefined => {
   const studentServiceHours = toNumberValue(pick(value, 'studentServiceHours', 'student_service_hours'), Number.NaN);
   const minimumSampleSize = toNumberValue(pick(value, 'minimumSampleSize', 'minimum_sample_size'), Number.NaN);
   const averageRating = toNumberValue(pick(value, 'averageRating', 'average_rating'), Number.NaN);
+  const missingFields = toArray(pick(value, 'missingFields', 'missing_fields'))
+    .map((field) => toStringValue(field))
+    .filter(Boolean);
   const evidence: KpiEvidence = {};
   if (Number.isFinite(numerator)) evidence.numerator = numerator;
   if (Number.isFinite(denominator)) evidence.denominator = denominator;
@@ -538,6 +551,7 @@ const normalizeEvidence = (value: unknown): KpiEvidence | undefined => {
   if (Number.isFinite(studentServiceHours)) evidence.studentServiceHours = studentServiceHours;
   if (Number.isFinite(minimumSampleSize)) evidence.minimumSampleSize = minimumSampleSize;
   if (Number.isFinite(averageRating)) evidence.averageRating = averageRating;
+  if (missingFields.length > 0) evidence.missingFields = missingFields;
   return Object.keys(evidence).length > 0 ? evidence : undefined;
 };
 
@@ -1069,6 +1083,7 @@ const requestJson = async (
   endpoint: string,
   options: RequestInit = {},
   query?: Record<string, string>,
+  onResponse?: (response: Response) => void,
 ): Promise<unknown> => {
   const controller = new AbortController();
   const callerSignal = options.signal;
@@ -1092,6 +1107,7 @@ const requestJson = async (
       },
       signal: controller.signal,
     });
+    onResponse?.(response);
     const responseText = await response.text();
     let payload: unknown;
     try {
@@ -1135,6 +1151,7 @@ type SheetMirrorTable =
   | 'parents'
   | 'student_parents'
   | 'counselor_assignments'
+  | 'counselor_assignment_records'
   | 'bookings'
   | 'tests'
   | 'test_attempts';
@@ -1156,16 +1173,19 @@ const clearSheetMirrorTables = (
 };
 
 export const clearStudentSheetMirrorCache = (): void => {
-  const studentTables: SheetMirrorTable[] = [
-    'students',
-    'parents',
-    'student_parents',
-  ];
-  clearSheetMirrorTables(studentTables, true);
+  clearSheetMirrorTables(['students'], true);
+};
+
+export const clearStudentParentSheetMirrorCache = (): void => {
+  clearSheetMirrorTables(['parents', 'student_parents'], true);
 };
 
 export const clearStudentCounselorSheetMirrorCache = (): void => {
-  clearSheetMirrorTables(['counselors', 'counselor_assignments'], true);
+  clearSheetMirrorTables([
+    'counselors',
+    'counselor_assignments',
+    'counselor_assignment_records',
+  ], true);
 };
 
 export const clearDashboardOperationsSheetMirrorCache = (
@@ -1180,7 +1200,19 @@ const loadSheetMirrorRows = async (
   signal?: AbortSignal,
 ): Promise<JsonRecord[]> => {
   const cached = sheetMirrorRowsCache.get(table);
-  if (cached && cached.expiresAt > Date.now()) return cached.rows;
+  if (cached && cached.expiresAt > Date.now()) {
+    console.info('[sheet-mirror]', {
+      requestId: 'browser-cache',
+      table,
+      page: null,
+      pageSize: null,
+      rowCount: cached.rows.length,
+      cacheHit: true,
+      durationMs: 0,
+      result: 'success',
+    });
+    return cached.rows;
+  }
 
   return sheetMirrorRequestPool.run(table, async (sharedSignal) => {
     const endpoint = SHEET_MIRROR_ENDPOINT.replace(':table', encodeURIComponent(table));
@@ -1188,19 +1220,58 @@ const loadSheetMirrorRows = async (
     const pageSize = 500;
 
     for (let page = 1; page <= 100; page += 1) {
-      const payload = await requestJson(
-        endpoint,
-        { headers: authorizationHeaders(session), cache: 'no-store', signal: sharedSignal },
-        { page: String(page), pageSize: String(pageSize) },
-      );
-      if (!isRecord(payload) || payload.ok !== true || !Array.isArray(payload.data)) {
-        throw new ApiError(`Sheet ${table} không trả về danh sách hợp lệ.`);
-      }
+      const requestId = crypto.randomUUID();
+      const startedAt = performance.now();
+      let serverTiming: string | null = null;
+      try {
+        const payload = await requestJson(
+          endpoint,
+          {
+            headers: {
+              ...authorizationHeaders(session),
+              'X-Request-Id': requestId,
+            },
+            cache: 'no-store',
+            signal: sharedSignal,
+          },
+          { page: String(page), pageSize: String(pageSize) },
+          (response) => { serverTiming = response.headers.get('server-timing'); },
+        );
+        if (!isRecord(payload) || payload.ok !== true || !Array.isArray(payload.data)) {
+          throw new ApiError(`Sheet ${table} không trả về danh sách hợp lệ.`);
+        }
 
-      const pageRows = payload.data.filter(isRecord);
-      rows.push(...pageRows);
-      const total = toNumberValue(payload.total, rows.length);
-      if (pageRows.length === 0 || rows.length >= total) break;
+        const pageRows = payload.data.filter(isRecord);
+        rows.push(...pageRows);
+        console.info('[sheet-mirror]', {
+          requestId,
+          table,
+          page,
+          pageSize,
+          rowCount: pageRows.length,
+          cacheHit: false,
+          durationMs: Math.round(performance.now() - startedAt),
+          serverTiming,
+          result: 'success',
+        });
+        const total = toNumberValue(payload.total, rows.length);
+        if (pageRows.length === 0 || rows.length >= total) break;
+      } catch (error) {
+        console.warn('[sheet-mirror]', {
+          requestId,
+          table,
+          page,
+          pageSize,
+          rowCount: 0,
+          cacheHit: false,
+          durationMs: Math.round(performance.now() - startedAt),
+          serverTiming,
+          result: error instanceof ApiError && error.message.includes('thời gian chờ')
+            ? 'timeout'
+            : 'error',
+        });
+        throw error;
+      }
     }
 
     sheetMirrorRowsCache.set(table, { expiresAt: Date.now() + 20000, rows });
@@ -1678,23 +1749,40 @@ export const loadStudents = async (
 ): Promise<StudentLoadResult> => {
   if (!isRemoteApiConfigured || session.source === 'mock') {
     return {
-      students: getMockStudents().filter((student) => student.status === 'ACTIVE'),
-      counselorDataAvailable: true,
-      counselorWarning: null,
+      students: getMockStudents().filter((student) => student.status !== 'INACTIVE'),
     };
   }
-  const sources = await loadStudentSheetSources((table) =>
+  const studentRows = await loadStudentRows((table) =>
     loadSheetMirrorRows(session, table, signal));
+  const normalizeStartedAt = performance.now();
+  const students = studentRows.map(normalizeStudent).filter((student) => student.status !== 'INACTIVE');
+  console.info('[student-source]', {
+    source: 'students',
+    phase: 'normalize',
+    rowCount: students.length,
+    durationMs: Math.round(performance.now() - normalizeStartedAt),
+    result: 'success',
+  });
   return {
-    students: enrichSheetStudentRows(
-      sources.students,
-      sources.counselors,
-      sources.assignments,
-      sources.parents,
-      sources.studentParents,
-    ).map(normalizeStudent).filter((student) => student.status !== 'INACTIVE'),
-    counselorDataAvailable: sources.counselorDataAvailable,
-    counselorWarning: sources.counselorWarning,
+    students,
+  };
+};
+
+export const loadStudentParentData = async (
+  session: AuthSession,
+  students: Student[],
+  signal?: AbortSignal,
+): Promise<StudentParentLoadResult> => {
+  if (!isRemoteApiConfigured || session.source === 'mock') return { students };
+
+  const { parents, studentParents } = await loadStudentParentSources((table) =>
+    loadSheetMirrorRows(session, table, signal));
+  const studentRows = students.map((student) => ({
+    ...student,
+    student_id: student.externalId ?? student.id,
+  }));
+  return {
+    students: enrichSheetStudentParents(studentRows, parents, studentParents).map(normalizeStudent),
   };
 };
 
@@ -1702,20 +1790,21 @@ export const reloadStudentCounselorData = async (
   session: AuthSession,
   students: Student[],
   signal?: AbortSignal,
-): Promise<StudentLoadResult> => {
+): Promise<StudentCounselorLoadResult> => {
   if (!isRemoteApiConfigured || session.source === 'mock') {
     return { students, counselorDataAvailable: true, counselorWarning: null };
   }
 
-  const counselorSources = await Promise.allSettled([
-    loadSheetMirrorRows(session, 'counselors', signal),
-    loadSheetMirrorRows(session, 'counselor_assignments', signal),
-  ]);
+  const counselorSources = await loadStudentCounselorSources((table) =>
+    loadSheetMirrorRows(session, table, signal));
   if (signal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
 
-  const counselors = counselorSources[0].status === 'fulfilled' ? counselorSources[0].value : [];
-  const assignments = counselorSources[1].status === 'fulfilled' ? counselorSources[1].value : [];
-  const counselorDataAvailable = counselorSources.every((result) => result.status === 'fulfilled');
+  const {
+    counselors,
+    assignments,
+    assignmentRecords,
+    counselorDataAvailable,
+  } = counselorSources;
   if (!counselorDataAvailable) {
     return {
       students,
@@ -1733,6 +1822,7 @@ export const reloadStudentCounselorData = async (
       studentRows,
       counselors,
       assignments,
+      assignmentRecords,
     ).map(normalizeStudent),
     counselorDataAvailable: true,
     counselorWarning: null,

@@ -1,5 +1,13 @@
 export type TimeRange = 'this-month' | 'last-month' | 'all-time';
 
+export type StudentDataSourceStatus = 'loading' | 'available' | 'error';
+
+export interface StudentDataSourceState {
+  status: StudentDataSourceStatus;
+  error: string | null;
+  lastUpdated: string | null;
+}
+
 export type CounselorStatus = 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE';
 export type OverallKpiStatus = 'Pass' | 'Not Pass' | 'Insufficient Data';
 
@@ -35,6 +43,7 @@ export interface KpiEvidence {
   studentServiceHours?: number;
   minimumSampleSize?: number;
   averageRating?: number;
+  missingFields?: string[];
 }
 
 export interface KPIItem {

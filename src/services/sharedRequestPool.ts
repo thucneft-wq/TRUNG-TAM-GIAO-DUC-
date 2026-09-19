@@ -19,6 +19,10 @@ export class SharedRequestPool<Key, Value> {
     signal?: AbortSignal,
   ): Promise<Value> {
     let entry = this.entries.get(key);
+    if (entry?.controller.signal.aborted) {
+      this.entries.delete(key);
+      entry = undefined;
+    }
     if (!entry) {
       const controller = new AbortController();
       const nextEntry: InFlightRequest<Value> = {

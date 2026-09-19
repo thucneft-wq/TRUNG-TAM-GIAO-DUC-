@@ -13,6 +13,7 @@ import {
   ScreenType,
   StudentTrendAnalytics,
   Student,
+  StudentDataSourceState,
   CreateStudentInput,
   TimeRange,
 } from './types';
@@ -37,8 +38,10 @@ import {
   analyticsSyncIntervalMs,
   clearDashboardOperationsSheetMirrorCache,
   clearStudentCounselorSheetMirrorCache,
+  clearStudentParentSheetMirrorCache,
   clearStudentSheetMirrorCache,
   loadDashboardSheetOperations,
+  loadStudentParentData,
   reloadStudentCounselorData,
   studentSyncIntervalMs,
   restoreSession,
@@ -94,6 +97,63 @@ const EMPTY_FEEDBACK: FeedbackAnalytics = {
   timeline: [],
 };
 
+const loadingStudentSource = (): StudentDataSourceState => ({
+  status: 'loading',
+  error: null,
+  lastUpdated: null,
+});
+
+const studentSourceAvailable = (): StudentDataSourceState => ({
+  status: 'available',
+  error: null,
+  lastUpdated: new Date().toISOString(),
+});
+
+const studentSourceError = (error: unknown, fallback: string): StudentDataSourceState => ({
+  status: 'error',
+  error: error instanceof Error ? error.message : fallback,
+  lastUpdated: null,
+});
+
+const studentLookup = (students: Student[]): Map<string, Student> => {
+  const lookup = new Map<string, Student>();
+  students.forEach((student) => {
+    lookup.set(student.id, student);
+    if (student.externalId) lookup.set(student.externalId, student);
+  });
+  return lookup;
+};
+
+const mergeStudentParentDetails = (current: Student[], hydrated: Student[]): Student[] => {
+  const incoming = studentLookup(hydrated);
+  return current.map((student) => {
+    const updated = incoming.get(student.id) ?? (student.externalId ? incoming.get(student.externalId) : undefined);
+    return updated ? {
+      ...student,
+      parentId: updated.parentId,
+      parentName: updated.parentName,
+      parentRelationship: updated.parentRelationship,
+      parentIsPrimary: updated.parentIsPrimary,
+      parentPhoneNumber: updated.parentPhoneNumber,
+      parentEmail: updated.parentEmail,
+    } : student;
+  });
+};
+
+const mergeStudentCounselorDetails = (current: Student[], hydrated: Student[]): Student[] => {
+  const incoming = studentLookup(hydrated);
+  return current.map((student) => {
+    const updated = incoming.get(student.id) ?? (student.externalId ? incoming.get(student.externalId) : undefined);
+    return updated ? {
+      ...student,
+      assignedCounselorId: updated.assignedCounselorId,
+      assignedCounselorName: updated.assignedCounselorName,
+      assignmentStatus: updated.assignmentStatus,
+      assignmentEndedAt: updated.assignmentEndedAt,
+    } : student;
+  });
+};
+
 const DEFAULT_ADMIN_SESSION: AuthSession = {
   user: {
     id: 'demo-admin',
@@ -131,12 +191,15 @@ export default function App() {
   const [feedbackAnalytics, setFeedbackAnalytics] = useState(EMPTY_FEEDBACK);
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(Boolean(session));
-  const [isStudentsLoading, setIsStudentsLoading] = useState(Boolean(session));
-  const [studentsError, setStudentsError] = useState<string | null>(null);
-  const [studentCounselorWarning, setStudentCounselorWarning] = useState<string | null>(null);
+  const [studentsSource, setStudentsSource] = useState<StudentDataSourceState>(() =>
+    session ? loadingStudentSource() : { status: 'available', error: null, lastUpdated: null });
+  const [parentsSource, setParentsSource] = useState<StudentDataSourceState>(loadingStudentSource);
+  const [counselorsSource, setCounselorsSource] = useState<StudentDataSourceState>(loadingStudentSource);
+  const [studentRefreshKey, setStudentRefreshKey] = useState(0);
+  const [isStudentParentRetrying, setIsStudentParentRetrying] = useState(false);
+  const studentParentRetryController = useRef<AbortController | null>(null);
   const [isStudentCounselorRetrying, setIsStudentCounselorRetrying] = useState(false);
   const studentCounselorRetryController = useRef<AbortController | null>(null);
-  const [studentsLastUpdated, setStudentsLastUpdated] = useState<string | null>(null);
   const [sheetOperations, setSheetOperations] = useState<DashboardSheetOperationsState>(
     createLoadingSheetOperationsState,
   );
@@ -162,6 +225,10 @@ export default function App() {
     () => countActiveStudentsByLevel(students),
     [students],
   );
+
+  const isStudentsLoading = studentsSource.status === 'loading';
+  const studentsError = studentsSource.status === 'error' ? studentsSource.error : null;
+  const studentsLastUpdated = studentsSource.lastUpdated;
 
   // API totals and trend data are used when available. Counselor pass/fail values
   // always come from the frontend's strict five-KPI policy.
@@ -263,34 +330,84 @@ export default function App() {
     if (!session) return;
     let isCurrentRequest = true;
     const controller = new AbortController();
-    setIsStudentsLoading(true);
-    setStudentsError(null);
-    setStudentCounselorWarning(null);
-    setStudents([]);
-    setStudentsLastUpdated(null);
+    setStudentsSource(loadingStudentSource());
+    setParentsSource(loadingStudentSource());
+    setCounselorsSource(loadingStudentSource());
     loadStudents(session, controller.signal)
       .then((result) => {
-        if (isCurrentRequest) {
-          setStudents(result.students);
-          setStudentCounselorWarning(result.counselorWarning);
-          setStudentsLastUpdated(new Date().toISOString());
-        }
+        if (!isCurrentRequest) return;
+        const renderStartedAt = performance.now();
+        setStudents(result.students);
+        setStudentsSource(studentSourceAvailable());
+        requestAnimationFrame(() => {
+          console.info('[student-source]', {
+            source: 'students',
+            phase: 'render',
+            rowCount: result.students.length,
+            durationMs: Math.round(performance.now() - renderStartedAt),
+            result: 'success',
+          });
+        });
+
+        void loadStudentParentData(session, result.students, controller.signal)
+          .then((parentResult) => {
+            if (!isCurrentRequest) return;
+            setStudents((current) => mergeStudentParentDetails(current, parentResult.students));
+            setParentsSource(studentSourceAvailable());
+          })
+          .catch((error) => {
+            if (!isCurrentRequest || controller.signal.aborted) return;
+            setParentsSource(studentSourceError(
+              error,
+              'Tạm thời chưa tải được thông tin phụ huynh.',
+            ));
+          });
+
+        void reloadStudentCounselorData(session, result.students, controller.signal)
+          .then((counselorResult) => {
+            if (!isCurrentRequest) return;
+            if (!counselorResult.counselorDataAvailable) {
+              setCounselorsSource({
+                status: 'error',
+                error: counselorResult.counselorWarning
+                  ?? 'Tạm thời chưa tải được phân công.',
+                lastUpdated: null,
+              });
+              return;
+            }
+            setStudents((current) => mergeStudentCounselorDetails(current, counselorResult.students));
+            setCounselorsSource(studentSourceAvailable());
+          })
+          .catch((error) => {
+            if (!isCurrentRequest || controller.signal.aborted) return;
+            setCounselorsSource(studentSourceError(
+              error,
+              'Tạm thời chưa tải được phân công.',
+            ));
+          });
       })
       .catch((error) => {
-        if (isCurrentRequest) {
-          setStudentsError(error instanceof Error ? error.message : 'Không thể tải danh sách học sinh.');
-        }
-      })
-      .finally(() => {
-        if (isCurrentRequest) setIsStudentsLoading(false);
+        if (!isCurrentRequest || controller.signal.aborted) return;
+        setStudentsSource(studentSourceError(error, 'Không thể tải danh sách học sinh.'));
+        setParentsSource({
+          status: 'error',
+          error: 'Không thể tải thông tin phụ huynh khi danh sách học sinh chưa sẵn sàng.',
+          lastUpdated: null,
+        });
+        setCounselorsSource({
+          status: 'error',
+          error: 'Không thể tải phân công khi danh sách học sinh chưa sẵn sàng.',
+          lastUpdated: null,
+        });
       });
     return () => {
       isCurrentRequest = false;
       controller.abort();
     };
-  }, [session, refreshKey]);
+  }, [session, studentRefreshKey]);
 
   useEffect(() => () => {
+    studentParentRetryController.current?.abort();
     studentCounselorRetryController.current?.abort();
   }, []);
 
@@ -337,10 +454,44 @@ export default function App() {
         pendingRequests -= 1;
         if (pendingRequests === 0) activeControllers.delete(controller);
       };
-      loadStudents(session, controller.signal).then((result) => {
+      loadStudents(session, controller.signal).then(async (result) => {
         setStudents(result.students);
-        setStudentCounselorWarning(result.counselorWarning);
-        setStudentsLastUpdated(new Date().toISOString());
+        setStudentsSource(studentSourceAvailable());
+        setParentsSource(loadingStudentSource());
+        setCounselorsSource(loadingStudentSource());
+
+        await Promise.allSettled([
+          loadStudentParentData(session, result.students, controller.signal).then((parentResult) => {
+            setStudents((current) => mergeStudentParentDetails(current, parentResult.students));
+            setParentsSource(studentSourceAvailable());
+          }).catch((error) => {
+            if (!controller.signal.aborted) {
+              setParentsSource(studentSourceError(
+                error,
+                'Tạm thời chưa tải được thông tin phụ huynh.',
+              ));
+            }
+          }),
+          reloadStudentCounselorData(session, result.students, controller.signal).then((counselorResult) => {
+            if (!counselorResult.counselorDataAvailable) {
+              setCounselorsSource({
+                status: 'error',
+                error: counselorResult.counselorWarning ?? 'Tạm thời chưa tải được phân công.',
+                lastUpdated: null,
+              });
+              return;
+            }
+            setStudents((current) => mergeStudentCounselorDetails(current, counselorResult.students));
+            setCounselorsSource(studentSourceAvailable());
+          }).catch((error) => {
+            if (!controller.signal.aborted) {
+              setCounselorsSource(studentSourceError(
+                error,
+                'Tạm thời chưa tải được phân công.',
+              ));
+            }
+          }),
+        ]);
       }).catch(() => {
         // Keep the last successful list; the next interval retries automatically.
       }).finally(markRequestFinished);
@@ -475,8 +626,9 @@ export default function App() {
     setSelectedCounselorId(null);
     setRemoteDashboard(null);
     setDataError(null);
-    setStudentsError(null);
-    setStudentsLastUpdated(null);
+    setStudentsSource({ status: 'available', error: null, lastUpdated: null });
+    setParentsSource({ status: 'available', error: null, lastUpdated: null });
+    setCounselorsSource({ status: 'available', error: null, lastUpdated: null });
     setSheetOperations(createLoadingSheetOperationsState());
     setDataWarning(null);
     setAnalyticsError(null);
@@ -535,13 +687,41 @@ export default function App() {
 
   const handleStudentsRefresh = () => {
     clearStudentSheetMirrorCache();
+    clearStudentParentSheetMirrorCache();
     clearStudentCounselorSheetMirrorCache();
+    studentParentRetryController.current?.abort();
     studentCounselorRetryController.current?.abort();
-    setStudents([]);
-    setStudentsError(null);
-    setStudentCounselorWarning(null);
-    setStudentsLastUpdated(null);
-    setRefreshKey((key) => key + 1);
+    setStudentsSource(loadingStudentSource());
+    setParentsSource(loadingStudentSource());
+    setCounselorsSource(loadingStudentSource());
+    setStudentRefreshKey((key) => key + 1);
+  };
+
+  const handleStudentParentRetry = async () => {
+    if (!session || students.length === 0) return;
+    studentParentRetryController.current?.abort();
+    clearStudentParentSheetMirrorCache();
+    const controller = new AbortController();
+    studentParentRetryController.current = controller;
+    setIsStudentParentRetrying(true);
+    setParentsSource(loadingStudentSource());
+    try {
+      const result = await loadStudentParentData(session, students, controller.signal);
+      if (studentParentRetryController.current !== controller) return;
+      setStudents((current) => mergeStudentParentDetails(current, result.students));
+      setParentsSource(studentSourceAvailable());
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setParentsSource(studentSourceError(
+        error,
+        'Tạm thời chưa tải được thông tin phụ huynh.',
+      ));
+    } finally {
+      if (studentParentRetryController.current === controller) {
+        studentParentRetryController.current = null;
+        setIsStudentParentRetrying(false);
+      }
+    }
   };
 
   const handleStudentCounselorRetry = async () => {
@@ -551,18 +731,26 @@ export default function App() {
     const controller = new AbortController();
     studentCounselorRetryController.current = controller;
     setIsStudentCounselorRetrying(true);
+    setCounselorsSource(loadingStudentSource());
     try {
       const result = await reloadStudentCounselorData(session, students, controller.signal);
       if (studentCounselorRetryController.current !== controller) return;
-      setStudents(result.students);
-      setStudentCounselorWarning(result.counselorWarning);
+      if (!result.counselorDataAvailable) {
+        setCounselorsSource({
+          status: 'error',
+          error: result.counselorWarning ?? 'Tạm thời chưa tải được phân công.',
+          lastUpdated: null,
+        });
+        return;
+      }
+      setStudents((current) => mergeStudentCounselorDetails(current, result.students));
+      setCounselorsSource(studentSourceAvailable());
     } catch (error) {
       if (controller.signal.aborted) return;
-      setStudentCounselorWarning(
-        error instanceof Error
-          ? error.message
-          : 'Thông tin phân công tư vấn viên tạm thời chưa tải được.',
-      );
+      setCounselorsSource(studentSourceError(
+        error,
+        'Tạm thời chưa tải được phân công.',
+      ));
     } finally {
       if (studentCounselorRetryController.current === controller) {
         studentCounselorRetryController.current = null;
@@ -701,7 +889,7 @@ export default function App() {
           aria-busy={isPageLoading}
           className="mx-auto w-full max-w-[94rem] flex-1 px-4 py-5 focus:outline-none sm:px-6 sm:py-7 lg:px-8 lg:py-8"
         >
-          {visibleDataError && (
+          {visibleDataError && !(currentScreen === 'students' && students.length === 0) && (
             <Alert
               tone="error"
               title="Không thể tải dữ liệu quản trị."
@@ -769,7 +957,11 @@ export default function App() {
                     }}
                     onRefresh={handleStudentsRefresh}
                     isRefreshing={isStudentsLoading}
-                    counselorWarning={studentCounselorWarning}
+                    studentsSource={studentsSource}
+                    parentsSource={parentsSource}
+                    counselorsSource={counselorsSource}
+                    onRetryParents={() => void handleStudentParentRetry()}
+                    isParentRetrying={isStudentParentRetrying}
                     onRetryCounselors={() => void handleStudentCounselorRetry()}
                     isCounselorRetrying={isStudentCounselorRetrying}
                   />

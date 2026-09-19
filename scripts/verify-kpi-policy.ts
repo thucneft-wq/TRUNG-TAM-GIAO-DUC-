@@ -3,6 +3,7 @@ import {
   calculateKpiResult,
   evaluateKpis,
   getCounselorEvaluation,
+  getKpiActualValueLabel,
   getPerformanceTargetAlignmentLabel,
   OFFICIAL_KPI_DEFINITIONS,
   REQUIRED_PASSED_KPIS,
@@ -18,8 +19,17 @@ import {
   calculateSheetOperationsSummary,
   settleSheetOperationSources,
 } from '../src/domain/sheetOperationsPolicy.ts';
-import { loadStudentSheetSources } from '../src/domain/studentLoadPolicy.ts';
+import {
+  loadStudentCounselorSources,
+  loadStudentParentSources,
+  loadStudentRows,
+  loadStudentSheetSources,
+} from '../src/domain/studentLoadPolicy.ts';
 import { SharedRequestPool } from '../src/services/sharedRequestPool.ts';
+import {
+  getStudentWorkflowState,
+  hasActiveStudentAssignment,
+} from '../src/domain/studentAssignmentPolicy.ts';
 
 const definitionById = new Map(
   OFFICIAL_KPI_DEFINITIONS.map((definition) => [definition.id, definition]),
@@ -151,6 +161,14 @@ assert.equal(
   false,
 );
 assert.equal(getPerformanceTargetAlignmentLabel({ ...overloaded[0], isPassed: false }), 'Đang quá tải');
+assert.equal(
+  getKpiActualValueLabel({
+    ...createOfficialKpi('weighted-caseload-capacity', Number.NaN),
+    actualNumeric: Number.NaN,
+  }),
+  '—',
+  'Unavailable caseload must not be presented as zero',
+);
 
 const roundToOneDecimal = (value: number): number => Math.round(value * 10) / 10;
 const assertClose = (actual: number, expected: number, message: string) =>
@@ -268,6 +286,7 @@ const enrichedStudents = enrichSheetStudentRows(
   sheetStudents,
   [],
   [],
+  [],
   sheetParents,
   [...sheetStudentParents].reverse(),
 );
@@ -311,6 +330,7 @@ const nonPrimaryLinks = [
 ];
 const selectFallbackParent = (links: typeof nonPrimaryLinks) => enrichSheetStudentRows(
   [{ student_id: 'HS-05', first_name: 'Không', last_name: 'Primary', status: 'ACTIVE' }],
+  [],
   [],
   [],
   sheetParents,
@@ -493,12 +513,82 @@ const resilientStudents = enrichSheetStudentRows(
   resilientSources.students,
   resilientSources.counselors,
   resilientSources.assignments,
+  resilientSources.assignmentRecords,
   resilientSources.parents,
   resilientSources.studentParents,
 );
 const resilientHs01 = resilientStudents.find((student) => student.student_id === 'HS-01')!;
 assert.equal(resilientHs01.parent_id, 'PH-01');
 assert.equal(resilientHs01.parent_name, 'Kim Ánh');
+
+const progressiveCalls: string[] = [];
+const progressiveStudents = await loadStudentRows(async (table) => {
+  progressiveCalls.push(table);
+  return table === 'students' ? sheetStudents : [];
+});
+assert.deepEqual(progressiveCalls, ['students']);
+assert.equal(progressiveStudents.length, sheetStudents.length);
+
+const progressiveParents = await loadStudentParentSources(async (table) => {
+  if (table === 'parents') return sheetParents;
+  if (table === 'student_parents') return sheetStudentParents;
+  throw new Error(`Unexpected progressive parent table: ${table}`);
+});
+assert.equal(progressiveParents.parents.length, sheetParents.length);
+assert.equal(progressiveParents.studentParents.length, sheetStudentParents.length);
+
+const progressiveCounselors = await loadStudentCounselorSources(async (table) => {
+  if (table === 'counselors') throw new Error('Counselors timeout');
+  return [];
+});
+assert.equal(progressiveCounselors.counselorDataAvailable, false);
+assert.match(progressiveCounselors.counselorWarning ?? '', /tư vấn viên/i);
+
+const assignmentStudents = enrichSheetStudentRows(
+  [
+    { student_id: 'HS-ACTIVE', status: 'ACTIVE' },
+    { student_id: 'HS-WAITING', status: 'ACTIVE', assigned_counselor_id: 'TTV-OLD' },
+    { student_id: 'HS-COMPLETED', status: 'COMPLETED' },
+    { student_id: 'HS-INACTIVE', status: 'INACTIVE' },
+  ],
+  [{ counselor_id: 'TTV-01', first_name: 'An', last_name: 'Tâm', status: 'ACTIVE' }],
+  [
+    { assignment_id: 'PC-01', student_id: 'HS-ACTIVE', counselor_id: 'TTV-01', status: 'ACTIVE' },
+    { assignment_id: 'PC-02', student_id: 'HS-WAITING', counselor_id: 'TTV-01', status: 'INACTIVE' },
+    { assignment_id: 'PC-03', student_id: 'HS-COMPLETED', counselor_id: 'TTV-01', status: 'INACTIVE' },
+    { assignment_id: 'PC-04', student_id: 'HS-INACTIVE', counselor_id: 'TTV-01', status: 'INACTIVE' },
+  ],
+  [
+    { assignment_id: 'PC-01', counselor_id: 'TTV-01', status: 'ACTIVE', assigned_at: '2026-09-01' },
+    { assignment_id: 'PC-02', counselor_id: 'TTV-01', status: 'INACTIVE', assigned_at: '2026-08-01', ended_at: '2026-09-05' },
+    { assignment_id: 'PC-03', counselor_id: 'TTV-01', status: 'INACTIVE', assigned_at: '2026-08-01', ended_at: '2026-09-06' },
+    { assignment_id: 'PC-04', counselor_id: 'TTV-01', status: 'INACTIVE', assigned_at: '2026-08-01', ended_at: '2026-09-07' },
+  ],
+  [],
+  [],
+);
+const assignmentByStudent = new Map(
+  assignmentStudents.map((student) => [String(student.student_id), student]),
+);
+const workflowInput = (studentId: string) => {
+  const student = assignmentByStudent.get(studentId)!;
+  return {
+    status: String(student.status) as 'ACTIVE' | 'COMPLETED' | 'INACTIVE',
+    assignedCounselorId: student.assigned_counselor_id ? String(student.assigned_counselor_id) : null,
+    assignmentStatus: student.assignment_status ? String(student.assignment_status) : null,
+    assignmentEndedAt: student.assignment_ended_at ? String(student.assignment_ended_at) : null,
+  };
+};
+assert.equal(getStudentWorkflowState(workflowInput('HS-ACTIVE')), 'IN_COUNSELING');
+assert.equal(getStudentWorkflowState(workflowInput('HS-WAITING')), 'WAITING_ASSIGNMENT');
+assert.equal(getStudentWorkflowState(workflowInput('HS-COMPLETED')), 'COMPLETED');
+assert.equal(getStudentWorkflowState(workflowInput('HS-INACTIVE')), 'INACTIVE');
+assert.equal(hasActiveStudentAssignment(workflowInput('HS-WAITING')), false);
+assert.equal(
+  workflowInput('HS-WAITING').assignedCounselorId,
+  'TTV-01',
+  'Historical counselor may remain available for history without becoming the current assignment',
+);
 
 await assert.rejects(
   () => loadStudentSheetSources(async (table) => {
@@ -526,6 +616,21 @@ resolveSharedRequest(['TVV-01']);
 assert.deepEqual(await dashboardCounselors, ['TVV-01']);
 assert.deepEqual(await studentCounselors, ['TVV-01']);
 assert.equal(sharedPool.has('counselors'), false, 'Finished requests must leave the in-flight pool');
+
+const strictModePool = new SharedRequestPool<string, string[]>();
+const firstConsumer = new AbortController();
+const abortedRequest = strictModePool.run('students', (signal) => new Promise<string[]>((resolve, reject) => {
+  signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
+  void resolve;
+}), firstConsumer.signal);
+firstConsumer.abort();
+await assert.rejects(abortedRequest, /aborted/i);
+const replacementRequest = strictModePool.run('students', async () => ['HS-01']);
+assert.deepEqual(
+  await replacementRequest,
+  ['HS-01'],
+  'A new consumer must not inherit an aborted StrictMode request',
+);
 
 const retryPool = new SharedRequestPool<string, string>();
 let abortedRequestCount = 0;

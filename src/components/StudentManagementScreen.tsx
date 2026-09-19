@@ -10,7 +10,12 @@ import {
   ExternalLink,
   RefreshCw,
 } from 'lucide-react';
-import type { CreateStudentInput, Student } from '../types';
+import type { CreateStudentInput, Student, StudentDataSourceState } from '../types';
+import {
+  getStudentWorkflowState,
+  hasActiveStudentAssignment,
+  hasEndedStudentAssignment,
+} from '../domain/studentAssignmentPolicy';
 import { cn } from '../lib/cn';
 import { Alert, Button, IconButton, ModalSurface, Select, TabButton, TextInput } from './ui/Primitives';
 
@@ -28,25 +33,78 @@ interface StudentManagementScreenProps {
   };
   onRefresh: () => void;
   isRefreshing: boolean;
-  counselorWarning: string | null;
+  studentsSource: StudentDataSourceState;
+  parentsSource: StudentDataSourceState;
+  counselorsSource: StudentDataSourceState;
+  onRetryParents: () => void;
+  isParentRetrying: boolean;
   onRetryCounselors: () => void;
   isCounselorRetrying: boolean;
 }
 
-const getStudentStatusPresentation = (student: Student) => ({
-  className: student.status === 'ACTIVE'
+export const getStudentStatusPresentation = (
+  student: Student,
+  counselorSourceStatus: StudentDataSourceState['status'] = 'available',
+) => {
+  const workflowState = getStudentWorkflowState(student);
+  return {
+  className: workflowState === 'IN_COUNSELING'
     ? 'bg-teal-50 text-academic-800 ring-1 ring-inset ring-teal-200'
-    : student.status === 'COMPLETED'
+    : workflowState === 'COMPLETED'
       ? 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200'
       : 'bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200',
-  label: student.status === 'ACTIVE'
-    ? student.assignedCounselorId ? 'Đang tư vấn' : 'Chờ chọn lịch'
-    : student.status === 'COMPLETED'
-      ? 'Đã hoàn thành'
-      : 'Ngừng theo dõi',
-});
+  label: student.status === 'ACTIVE' && counselorSourceStatus !== 'available'
+    ? counselorSourceStatus === 'loading'
+      ? 'Đang tải phân công'
+      : 'Tạm thời chưa tải được'
+    : workflowState === 'IN_COUNSELING'
+      ? 'Đang tư vấn'
+      : workflowState === 'WAITING_ASSIGNMENT'
+        ? 'Chờ phân công'
+        : workflowState === 'COMPLETED'
+          ? 'Đã hoàn thành'
+          : 'Ngừng theo dõi',
+  };
+};
 
-const ParentContact = ({ student }: { student: Student }) => {
+const getCounselorPresentation = (
+  student: Student,
+  counselorSourceStatus: StudentDataSourceState['status'],
+): { name: string; ended: boolean } => {
+  if (counselorSourceStatus !== 'available') {
+    return {
+      name: counselorSourceStatus === 'loading'
+        ? 'Đang tải phân công…'
+        : 'Tạm thời chưa tải được phân công',
+      ended: false,
+    };
+  }
+  if (hasActiveStudentAssignment(student)) {
+    return { name: student.assignedCounselorName ?? 'Chưa xác định tư vấn viên', ended: false };
+  }
+  const ended = hasEndedStudentAssignment(student);
+  if (student.status === 'COMPLETED' && ended && student.assignedCounselorName) {
+    return { name: student.assignedCounselorName, ended: true };
+  }
+  return { name: 'Chưa phân công', ended: false };
+};
+
+const ParentContact = ({
+  student,
+  sourceStatus,
+}: {
+  student: Student;
+  sourceStatus: StudentDataSourceState['status'];
+}) => {
+  if (sourceStatus !== 'available') {
+    return (
+      <p className="text-slate-500">
+        {sourceStatus === 'loading'
+          ? 'Đang tải thông tin phụ huynh…'
+          : 'Tạm thời chưa tải được thông tin phụ huynh'}
+      </p>
+    );
+  }
   if (!student.parentId) {
     return <p className="text-slate-500">Chưa có thông tin phụ huynh</p>;
   }
@@ -85,7 +143,11 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
   googleEntryUrls,
   onRefresh,
   isRefreshing,
-  counselorWarning,
+  studentsSource,
+  parentsSource,
+  counselorsSource,
+  onRetryParents,
+  isParentRetrying,
   onRetryCounselors,
   isCounselorRetrying,
 }) => {
@@ -134,6 +196,7 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
     () => students.filter((student) => student.status === 'ACTIVE').length,
     [students],
   );
+  const hasStudentData = studentsSource.status === 'available' || students.length > 0;
 
   const primarySheetLevel = levelFilter === 'THPT' ? 'thpt' : 'thcs';
   const secondarySheetLevel = primarySheetLevel === 'thcs' ? 'thpt' : 'thcs';
@@ -217,7 +280,11 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
           <h1 className="page-title">Hồ sơ học sinh</h1>
           <p className="mt-1 max-w-2xl text-pretty text-sm text-slate-600">{pageDescription}</p>
           <p className="mt-2 text-xs text-slate-500">
-            <span className="tabular-nums font-semibold text-ink-950">{students.length}</span> hồ sơ · <span className="tabular-nums font-semibold text-ink-950">{activeStudentCount}</span> đang hoạt động
+            <span className="tabular-nums font-semibold text-ink-950">
+              {hasStudentData ? students.length : '—'}
+            </span> hồ sơ · <span className="tabular-nums font-semibold text-ink-950">
+              {hasStudentData ? activeStudentCount : '—'}
+            </span> đang hoạt động
           </p>
         </div>
 
@@ -244,10 +311,25 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
 
       {error && <Alert tone="error" action={<Button size="sm" onClick={handleRetry}>Thử lại</Button>}>{error}</Alert>}
 
-      {counselorWarning && (
+      {parentsSource.status === 'error' && hasStudentData && (
         <Alert
           tone="warning"
-          title="Dữ liệu tư vấn viên chưa sẵn sàng"
+          title="Thông tin phụ huynh chưa sẵn sàng"
+          action={(
+            <Button size="sm" onClick={onRetryParents} disabled={isParentRetrying}>
+              <RefreshCw className="size-3.5" />
+              {isParentRetrying ? 'Đang thử lại' : 'Thử lại phụ huynh'}
+            </Button>
+          )}
+        >
+          Tạm thời chưa tải được thông tin phụ huynh. Danh sách học sinh vẫn được giữ nguyên.
+        </Alert>
+      )}
+
+      {counselorsSource.status === 'error' && hasStudentData && (
+        <Alert
+          tone="warning"
+          title="Phân công tư vấn viên chưa sẵn sàng"
           action={(
             <Button size="sm" onClick={onRetryCounselors} disabled={isCounselorRetrying}>
               <RefreshCw className="size-3.5" />
@@ -255,7 +337,7 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
             </Button>
           )}
         >
-          {counselorWarning}
+          Tạm thời chưa tải được phân công. Danh sách học sinh và thông tin phụ huynh vẫn được giữ nguyên.
         </Alert>
       )}
 
@@ -269,7 +351,9 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
               onClick={() => setLevelFilter(level)}
               className="inline-flex items-center gap-2 px-1"
             >
-              Học sinh {level} <span className="tabular-nums text-xs text-slate-500">{levelCounts[level]}</span>
+              Học sinh {level} <span className="tabular-nums text-xs text-slate-500">
+                {hasStudentData ? levelCounts[level] : '—'}
+              </span>
             </TabButton>
           ))}
           {levelCounts.UNKNOWN > 0 && (
@@ -286,7 +370,9 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
         <div className="flex flex-col gap-3 border-b border-rule p-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <h2 className="text-balance text-base font-semibold text-slate-950">Danh sách {levelFilter === 'UNKNOWN' ? 'học sinh chưa phân loại' : `học sinh ${levelFilter}`}</h2>
-            <p className="mt-1 text-sm text-slate-500"><span className="tabular-nums">{filtered.length}</span> hồ sơ phù hợp</p>
+            <p className="mt-1 text-sm text-slate-500">
+              <span className="tabular-nums">{hasStudentData ? filtered.length : '—'}</span> hồ sơ phù hợp
+            </p>
           </div>
           <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_11rem] lg:w-auto lg:grid-cols-[20rem_11rem]">
             <label className="relative block min-w-0">
@@ -314,7 +400,25 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
           </div>
         </div>
 
-        {filtered.length === 0 ? (
+        {!hasStudentData ? (
+          <div className="px-4 py-12 text-center" role="status">
+            <UserRound className="mx-auto size-8 text-slate-300" />
+            <h3 className="mt-3 text-balance text-sm font-semibold text-slate-900">
+              Chưa thể tải danh sách học sinh
+            </h3>
+            <p className="mx-auto mt-1 max-w-sm text-pretty text-sm text-slate-500">
+              Nguồn Sheet Mirror chưa phản hồi. Chưa có kết luận rằng danh sách đang có 0 học sinh.
+            </p>
+            {studentsSource.error && (
+              <p className="mx-auto mt-2 max-w-sm text-pretty text-xs text-brick-700">
+                {studentsSource.error}
+              </p>
+            )}
+            <Button variant="primary" onClick={onRefresh} className="mt-4">
+              <RefreshCw className="size-4" /> Thử lại
+            </Button>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="px-4 py-12 text-center">
             <UserRound className="mx-auto size-8 text-slate-300" />
             <h3 className="mt-3 text-balance text-sm font-semibold text-slate-900">Không có học sinh phù hợp</h3>
@@ -331,7 +435,8 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
           <>
           <div className="grid grid-cols-1 gap-px bg-rule md:grid-cols-2 lg:hidden">
             {filtered.map((student) => {
-              const statusPresentation = getStudentStatusPresentation(student);
+              const statusPresentation = getStudentStatusPresentation(student, counselorsSource.status);
+              const counselorPresentation = getCounselorPresentation(student, counselorsSource.status);
               return (
                 <article key={student.id} className="min-w-0 bg-white p-4 text-sm text-slate-700">
                   <div className="flex min-w-0 items-start justify-between gap-3">
@@ -355,7 +460,7 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                     <div className="min-w-0">
                       <dt className="text-xs font-medium text-slate-500">Liên hệ phụ huynh</dt>
                       <dd className="mt-1 space-y-1 text-xs">
-                        <ParentContact student={student} />
+                        <ParentContact student={student} sourceStatus={parentsSource.status} />
                       </dd>
                     </div>
                     <div>
@@ -365,11 +470,9 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                     <div className="min-w-0">
                       <dt className="text-xs font-medium text-slate-500">Tư vấn viên</dt>
                       <dd className="mt-1 line-clamp-2 font-medium text-slate-800">
-                        {counselorWarning
-                          ? 'Tạm thời chưa tải được'
-                          : student.assignedCounselorName ?? 'Chưa phân công'}
+                        {counselorPresentation.name}
                       </dd>
-                      {!counselorWarning && student.assignmentStatus && student.assignmentStatus !== 'ACTIVE' && (
+                      {counselorPresentation.ended && (
                         <p className="mt-1 text-xs text-slate-400">Phân công đã kết thúc</p>
                       )}
                     </div>
@@ -396,7 +499,8 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((student) => {
-                  const statusPresentation = getStudentStatusPresentation(student);
+                  const statusPresentation = getStudentStatusPresentation(student, counselorsSource.status);
+                  const counselorPresentation = getCounselorPresentation(student, counselorsSource.status);
                   return (
                   <tr key={student.id} className="text-slate-700 hover:bg-slate-50">
                     <td className="px-4 py-3 align-top">
@@ -410,7 +514,7 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                       <div className="mt-1 flex items-center gap-1.5 text-slate-500"><Mail className="size-3.5 shrink-0" /><span className="truncate">{student.email ?? 'Chưa có email'}</span></div>
                     </td>
                     <td className="px-3 py-3 align-top text-xs">
-                      <ParentContact student={student} />
+                      <ParentContact student={student} sourceStatus={parentsSource.status} />
                     </td>
                     <td className="px-3 py-3 align-top text-xs tabular-nums">{student.dateOfBirth ?? '—'}</td>
                     <td className="px-3 py-3 align-top">
@@ -420,11 +524,9 @@ export const StudentManagementScreen: React.FC<StudentManagementScreenProps> = (
                     </td>
                     <td className="px-3 py-3 align-top text-xs">
                       <div className="line-clamp-2">
-                        {counselorWarning
-                          ? 'Tạm thời chưa tải được'
-                          : student.assignedCounselorName ?? 'Chưa phân công'}
+                        {counselorPresentation.name}
                       </div>
-                      {!counselorWarning && student.assignmentStatus && student.assignmentStatus !== 'ACTIVE' && (
+                      {counselorPresentation.ended && (
                         <div className="mt-1 text-xs text-slate-400">Phân công đã kết thúc</div>
                       )}
                     </td>

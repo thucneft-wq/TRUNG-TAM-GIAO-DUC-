@@ -24,6 +24,14 @@ export const isInactiveSheetValue = (value: unknown): boolean => {
     || status.includes('khong hoat dong');
 };
 
+export const isActiveSheetValue = (value: unknown): boolean => {
+  const status = sheetText(value).toLocaleLowerCase('vi-VN');
+  return status === 'active'
+    || status === 'assigned'
+    || status.includes('đang hoạt động')
+    || status.includes('dang hoat dong');
+};
+
 export const isSheetTrue = (value: unknown): boolean => {
   if (value === true || value === 1) return true;
   const normalized = sheetText(value).toLocaleLowerCase('en-US');
@@ -60,6 +68,7 @@ export const enrichSheetStudentRows = (
   studentRows: SheetRecord[],
   counselorRows: SheetRecord[],
   assignmentRows: SheetRecord[],
+  assignmentRecordRows: SheetRecord[],
   parentRows: SheetRecord[],
   studentParentRows: SheetRecord[],
 ): SheetRecord[] => {
@@ -67,6 +76,7 @@ export const enrichSheetStudentRows = (
     studentRows,
     counselorRows,
     assignmentRows,
+    assignmentRecordRows,
   );
 
   return enrichSheetStudentParents(rowsWithCounselors, parentRows, studentParentRows);
@@ -76,52 +86,110 @@ export const enrichSheetStudentCounselors = (
   studentRows: SheetRecord[],
   counselorRows: SheetRecord[],
   assignmentRows: SheetRecord[],
+  assignmentRecordRows: SheetRecord[],
 ): SheetRecord[] => {
   const counselorNames = new Map<string, string>();
   counselorRows.forEach((row) => {
-    const id = normalizedRecordId(
-      pickSheetValue(row, 'counselor_id', 'external_counselor_id', 'id'),
-    );
-    if (!id || isInactiveSheetValue(pickSheetValue(row, 'status'))) return;
+    if (isInactiveSheetValue(pickSheetValue(row, 'status'))) return;
     const firstName = sheetText(pickSheetValue(row, 'first_name', 'firstName'));
     const lastName = sheetText(pickSheetValue(row, 'last_name', 'lastName'));
-    counselorNames.set(
-      id,
-      sheetText(pickSheetValue(row, 'name', 'full_name')) || `${firstName} ${lastName}`.trim(),
-    );
+    const name = sheetText(pickSheetValue(row, 'name', 'full_name'))
+      || `${firstName} ${lastName}`.trim();
+    [
+      pickSheetValue(row, 'counselor_id', 'id'),
+      pickSheetValue(row, 'external_counselor_id', 'externalCounselorId'),
+    ].map(normalizedRecordId).filter(Boolean).forEach((id) => counselorNames.set(id, name));
   });
 
-  const assignments = new Map<string, SheetRecord>();
-  assignmentRows.forEach((row) => {
-    if (isInactiveSheetValue(pickSheetValue(row, 'status', 'assignment_status'))) return;
-    if (sheetText(pickSheetValue(row, 'ended_at', 'assignment_ended_at'))) return;
-    const studentId = normalizedRecordId(
-      pickSheetValue(row, 'student_id', 'external_student_id'),
+  const recordsByAssignment = new Map<string, SheetRecord[]>();
+  assignmentRecordRows.forEach((record) => {
+    const assignmentId = normalizedRecordId(
+      pickSheetValue(record, 'assignment_id', 'assignmentId'),
     );
-    if (studentId) assignments.set(studentId, row);
+    if (!assignmentId) return;
+    const records = recordsByAssignment.get(assignmentId) ?? [];
+    records.push(record);
+    recordsByAssignment.set(assignmentId, records);
+  });
+
+  const currentAssignments = new Map<string, SheetRecord>();
+  const historicalAssignments = new Map<string, SheetRecord>();
+  assignmentRows.forEach((row) => {
+    const studentIds = [
+      pickSheetValue(row, 'student_id'),
+      pickSheetValue(row, 'external_student_id', 'externalStudentId'),
+    ].map(normalizedRecordId).filter(Boolean);
+    if (studentIds.length === 0) return;
+
+    const assignmentId = normalizedRecordId(pickSheetValue(row, 'assignment_id', 'assignmentId'));
+    const records = recordsByAssignment.get(assignmentId) ?? [];
+    const activeRecord = records.find((record) =>
+      isActiveSheetValue(pickSheetValue(record, 'status', 'assignment_status'))
+      && !sheetText(pickSheetValue(record, 'ended_at', 'assignment_ended_at')));
+    const latestRecord = [...records].sort((left, right) => {
+      const leftTime = Date.parse(sheetText(
+        pickSheetValue(left, 'ended_at', 'assigned_at', 'updated_at', 'created_at'),
+      ));
+      const rightTime = Date.parse(sheetText(
+        pickSheetValue(right, 'ended_at', 'assigned_at', 'updated_at', 'created_at'),
+      ));
+      return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
+    })[0];
+    const assignmentStatus = pickSheetValue(row, 'status', 'assignment_status');
+    const assignmentEndedAt = sheetText(pickSheetValue(row, 'ended_at', 'assignment_ended_at'));
+    const isCurrent = isActiveSheetValue(assignmentStatus)
+      && !assignmentEndedAt
+      && Boolean(activeRecord);
+    const merged = { ...row, ...(latestRecord ?? {}), ...(activeRecord ?? {}) };
+
+    if (isCurrent) {
+      studentIds.forEach((studentId) => currentAssignments.set(studentId, merged));
+      return;
+    }
+    studentIds.forEach((studentId) => {
+      const existing = historicalAssignments.get(studentId);
+      const existingTime = Date.parse(sheetText(
+        pickSheetValue(existing ?? {}, 'ended_at', 'assigned_at', 'updated_at', 'created_at'),
+      ));
+      const mergedTime = Date.parse(sheetText(
+        pickSheetValue(merged, 'ended_at', 'assigned_at', 'updated_at', 'created_at'),
+      ));
+      if (!existing || (Number.isNaN(existingTime) ? 0 : existingTime) <= (Number.isNaN(mergedTime) ? 0 : mergedTime)) {
+        historicalAssignments.set(studentId, merged);
+      }
+    });
   });
 
   return studentRows.map((row) => {
-    const studentId = normalizedRecordId(
-      pickSheetValue(row, 'student_id', 'external_student_id', 'id'),
-    );
-    const assignment = assignments.get(studentId);
+    const studentIds = [
+      pickSheetValue(row, 'student_id', 'id'),
+      pickSheetValue(row, 'external_student_id', 'externalStudentId'),
+    ].map(normalizedRecordId).filter(Boolean);
+    const currentAssignment = studentIds
+      .map((studentId) => currentAssignments.get(studentId))
+      .find(Boolean);
+    const historicalAssignment = studentIds
+      .map((studentId) => historicalAssignments.get(studentId))
+      .find(Boolean);
+    const assignment = currentAssignment ?? historicalAssignment;
+    const isCurrent = Boolean(currentAssignment);
     const counselorId = sheetText(
       pickSheetValue(assignment ?? {}, 'counselor_id', 'external_counselor_id'),
-    ) || sheetText(pickSheetValue(row, 'assigned_counselor_id', 'assignedCounselorId'));
+    );
 
     return {
       ...row,
       assigned_counselor_id: counselorId || null,
       assigned_counselor_name: counselorNames.get(normalizedRecordId(counselorId))
-        ?? sheetText(pickSheetValue(row, 'assigned_counselor_name', 'assignedCounselorName'))
         ?? null,
       assignment_status: assignment
-        ? sheetText(pickSheetValue(assignment, 'status', 'assignment_status')) || 'ACTIVE'
-        : pickSheetValue(row, 'assignment_status', 'assignmentStatus') ?? null,
+        ? isCurrent
+          ? 'ACTIVE'
+          : 'INACTIVE'
+        : null,
       assignment_ended_at: assignment
         ? pickSheetValue(assignment, 'ended_at', 'assignment_ended_at') ?? null
-        : pickSheetValue(row, 'assignment_ended_at', 'assignmentEndedAt') ?? null,
+        : null,
     };
   });
 };

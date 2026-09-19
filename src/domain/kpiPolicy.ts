@@ -23,20 +23,20 @@ export interface OfficialKpiDefinition {
 export const OFFICIAL_KPI_DEFINITIONS: readonly OfficialKpiDefinition[] = [
   {
     id: 'weighted-caseload-capacity',
-    name: 'Số học sinh đang phụ trách',
-    shortLabel: 'Số ca phụ trách',
+    name: 'Tải hồ sơ đang phụ trách',
+    shortLabel: 'Tải hồ sơ',
     category: 'Khối lượng công việc',
     targetNumeric: 20,
-    targetValue: 'Không phụ trách quá 20 ca tương đương',
-    unit: 'ca tương đương',
+    targetValue: 'Không quá 20 hồ sơ quy đổi/FTE',
+    unit: 'hồ sơ quy đổi',
     comparisonType: 'lte',
     weight: 15,
     hardGuardrail: true,
   },
   {
     id: 'student-service-time',
-    name: 'Thời gian dành cho học sinh',
-    shortLabel: 'Giờ hỗ trợ học sinh',
+    name: 'Thời lượng phục vụ học sinh',
+    shortLabel: 'Thời lượng phục vụ',
     category: 'Thời gian hỗ trợ',
     targetNumeric: 80,
     targetValue: 'Ít nhất 80% giờ hỗ trợ đã đăng ký',
@@ -46,8 +46,8 @@ export const OFFICIAL_KPI_DEFINITIONS: readonly OfficialKpiDefinition[] = [
   },
   {
     id: 'eligible-session-completion',
-    name: 'Lịch tư vấn đã hoàn thành',
-    shortLabel: 'Lịch tư vấn',
+    name: 'Tỷ lệ hoàn thành phiên tham vấn',
+    shortLabel: 'Hoàn thành phiên',
     category: 'Tiến độ tư vấn',
     targetNumeric: 80,
     targetValue: 'Hoàn thành ít nhất 80% lịch đến hạn',
@@ -57,8 +57,8 @@ export const OFFICIAL_KPI_DEFINITIONS: readonly OfficialKpiDefinition[] = [
   },
   {
     id: 'assessment-follow-through',
-    name: 'Bài đánh giá đã hoàn thành',
-    shortLabel: 'Bài đánh giá',
+    name: 'Tỷ lệ hoàn thành bài đánh giá',
+    shortLabel: 'Hoàn thành bài đánh giá',
     category: 'Theo dõi đánh giá',
     targetNumeric: 80,
     targetValue: 'Hoàn thành ít nhất 80% bài được giao',
@@ -68,8 +68,8 @@ export const OFFICIAL_KPI_DEFINITIONS: readonly OfficialKpiDefinition[] = [
   },
   {
     id: 'student-outcome-experience',
-    name: 'Mức hài lòng của học sinh',
-    shortLabel: 'Học sinh hài lòng',
+    name: 'Kết quả và trải nghiệm học sinh',
+    shortLabel: 'Kết quả và trải nghiệm',
     category: 'Phản hồi học sinh',
     targetNumeric: 80,
     targetValue: 'Từ 4/5 điểm và có ít nhất 5 phản hồi',
@@ -174,7 +174,7 @@ export const getPerformanceTargetAlignmentLabel = (kpi: KPIItem): string => {
 };
 
 export const getKpiActualValueLabel = (kpi: KPIItem): string => {
-  if (!Number.isFinite(kpi.actualNumeric)) return 'Chưa có dữ liệu';
+  if (!Number.isFinite(kpi.actualNumeric)) return '—';
   if (kpi.id === 'student-outcome-experience' && kpi.evidence?.averageRating !== undefined) {
     return `${kpi.evidence.averageRating.toLocaleString('vi-VN', { maximumFractionDigits: 2 })} / 5`;
   }
@@ -187,7 +187,13 @@ export const getKpiAuditNote = (kpi: KPIItem): string => {
 
   switch (kpi.id) {
     case 'weighted-caseload-capacity':
-      return `Hiện tương đương ${kpi.actualNumeric} ca thông thường. Đây là điều kiện an toàn, không phải điểm hiệu suất. Không có ca được xếp là chưa đủ dữ liệu; trên 20 ca là quá tải.`;
+      if (!Number.isFinite(kpi.actualNumeric)) {
+        const missing = evidence.missingFields?.length
+          ? ` Thiếu trường: ${evidence.missingFields.join(', ')}.`
+          : '';
+        return `Chưa thể tính tải hồ sơ từ dữ liệu nguồn.${missing}`;
+      }
+      return `Mức tải cao nhất trong kỳ là ${kpi.actualNumeric} hồ sơ quy đổi/FTE. Mỗi học sinh chỉ được tính một lần tại từng thời điểm; phân công đã kết thúc không tính sau ended_at. Giá trị 0 là chưa đủ dữ liệu, không phải đạt.`;
     case 'student-service-time':
       return `Đã dành ${evidence.studentServiceHours ?? evidence.numerator ?? 0} giờ cho các buổi tư vấn hoàn thành, trên ${evidence.registeredHours ?? evidence.denominator ?? 0} giờ hỗ trợ đã đăng ký. Hiện chưa tính các việc hỗ trợ gián tiếp vì chưa có nhật ký thời gian.`;
     case 'eligible-session-completion':

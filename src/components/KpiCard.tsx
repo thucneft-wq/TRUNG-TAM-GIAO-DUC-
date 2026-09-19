@@ -50,27 +50,34 @@ export const KpiCard: React.FC<KpiCardProps> = ({
   };
 
   const styles = getVariantStyles();
-  const className = `min-h-40 border-b border-r border-rule bg-white p-4 text-left ${
+  const className = `flex h-full min-h-40 flex-col border-b border-r border-rule bg-white p-4 text-left ${
     onClick ? 'cursor-pointer transition-colors hover:bg-teal-50/60' : ''
   }`;
   const content = (
     <>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-medium leading-5 text-slate-600">{title}</p>
-          <p className={`mt-2 font-display text-3xl font-bold tabular-nums ${styles.value}`}>{value}</p>
-        </div>
+      <div className="grid min-h-10 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+        <p className="line-clamp-2 text-pretty text-sm font-medium leading-5 text-slate-600">{title}</p>
         <Icon className={`mt-0.5 size-5 shrink-0 ${styles.icon}`} aria-hidden="true" />
       </div>
 
-      <div className="mt-5 border-t border-rule pt-3 text-xs leading-5">
-        {subtitle && <p className="text-slate-500">{subtitle}</p>}
-        {trend && (
-          <p className={trend.isPositive ? 'mt-1 font-medium text-pine-700' : 'mt-1 font-medium text-brick-700'}>
-            {trend.isPositive ? 'Tăng' : 'Giảm'} {trend.value} {trend.label}
-          </p>
+      <div className="mt-2 min-h-9">
+        <p className={`font-display text-3xl font-bold leading-9 tabular-nums ${styles.value}`}>{value}</p>
+      </div>
+
+      <div className="mt-4 border-t border-rule" aria-hidden="true" />
+
+      <div className="flex flex-1 flex-col pt-3 text-xs leading-5 tabular-nums">
+        {subtitle && <p className="min-h-10 text-pretty text-slate-500">{subtitle}</p>}
+        {(trend || footer) && (
+          <div className="mt-auto pt-2">
+            {trend && (
+              <p className={trend.isPositive ? 'font-medium text-pine-700' : 'font-medium text-brick-700'}>
+                {trend.isPositive ? 'Tăng' : 'Giảm'} {trend.value} {trend.label}
+              </p>
+            )}
+            {footer}
+          </div>
         )}
-        {footer}
       </div>
     </>
   );
